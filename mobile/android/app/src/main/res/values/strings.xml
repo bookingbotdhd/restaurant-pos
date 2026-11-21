@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">RestroOS</string>
+    <string name="title_activity_main">RestroOS</string>
+    <string name="package_name">com.shibam.restroos</string>
+    <string name="custom_url_scheme">com.shibam.restroos</string>
+</resources>
