@@ -46,6 +46,9 @@ export interface PricedLineInput {
 export interface PricedLine {
   lineTotal: number; // inclusive
   taxAmount: number; // informational breakup only, already inside lineTotal
+  /** Effective unit price (inclusive, modifiers included); needed by BOGO. */
+  unitPriceInclusive?: number;
+  quantity?: number;
 }
 
 export function round2(value: number): number {

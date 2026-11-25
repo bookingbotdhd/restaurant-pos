@@ -124,6 +124,12 @@ const billAdjustmentFields = {
     tipAmount: zod_1.z.coerce.number().min(0).optional(),
     loyaltyPointsToRedeem: zod_1.z.coerce.number().int().min(0).optional(),
     couponCode: zod_1.z.string().trim().min(3).max(24).optional(),
+    // Service charge override for this bill (percent of the discounted
+    // subtotal). Omitted = the restaurant's configured default from Settings.
+    serviceChargePercent: zod_1.z.coerce.number().min(0).max(100).optional(),
+    // BOGO offer for this bill. Omitted = the restaurant's configured
+    // default; false = do not apply it even when the restaurant has it on.
+    applyBogo: zod_1.z.boolean().optional(),
 };
 exports.billPreviewSchema = zod_1.z.object({
     ...billAdjustmentFields,

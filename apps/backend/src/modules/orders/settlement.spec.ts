@@ -3,6 +3,7 @@ import { priceLine } from './pricing';
 import {
   assertManualDiscountAllowed,
   computeBill,
+  computeBogoDiscount,
   discountPercentOf,
   manualDiscountEntry,
   settlePayments,
@@ -93,6 +94,151 @@ describe('computeBill', () => {
 
   it('handles an empty bill', () => {
     expect(computeBill({ lines: [] }).totalDue).toBe(0);
+  });
+});
+
+describe('service charge', () => {
+  it('is off by default', () => {
+    const b = computeBill({ lines: [line(500)] });
+    expect(b.serviceChargePercent).toBe(0);
+    expect(b.serviceChargeAmount).toBe(0);
+    expect(b.totalDue).toBe(500);
+  });
+
+  it('adds a percentage on top of the bill', () => {
+    const b = computeBill({ lines: [line(500)], serviceChargePercent: 10 });
+    expect(b.serviceChargeAmount).toBe(50);
+    expect(b.totalDue).toBe(550);
+  });
+
+  it('is charged on the discounted subtotal, not the gross one', () => {
+    // 1000 - 10% discount = 900; 10% service charge on 900 = 90.
+    const b = computeBill({
+      lines: [line(1000)],
+      discountPercent: 10,
+      serviceChargePercent: 10,
+    });
+    expect(b.discountAmount).toBe(100);
+    expect(b.serviceChargeAmount).toBe(90);
+    expect(b.totalDue).toBe(990);
+  });
+
+  it('does not change the tax breakup (it sits outside the taxable subtotal, like a tip)', () => {
+    const b = computeBill({
+      lines: [line(118, 1, 18)],
+      serviceChargePercent: 10,
+    });
+    expect(b.taxAmount).toBe(18);
+    expect(b.totalDue).toBe(129.8); // 118 + 11.8
+  });
+
+  it('stacks with tip and delivery fee', () => {
+    const b = computeBill({
+      lines: [line(200)],
+      serviceChargePercent: 5,
+      tip: 20,
+      deliveryFee: 30,
+    });
+    expect(b.totalDue).toBe(260); // 200 + 10 + 20 + 30
+  });
+
+  it('clamps an out-of-range percentage instead of overcharging', () => {
+    expect(
+      computeBill({ lines: [line(100)], serviceChargePercent: 150 })
+        .serviceChargeAmount,
+    ).toBe(100);
+    expect(
+      computeBill({ lines: [line(100)], serviceChargePercent: -5 })
+        .serviceChargeAmount,
+    ).toBe(0);
+  });
+});
+
+describe('BOGO (buy-one-get-one, cheapest free)', () => {
+  const priced = (price: number, qty = 1) => ({
+    ...line(price, qty),
+    unitPriceInclusive: price,
+    quantity: qty,
+  });
+
+  it('frees the cheapest item on buy-1-get-1', () => {
+    expect(
+      computeBogoDiscount(
+        [priced(250), priced(100)],
+        { buyQty: 1, getQty: 1 },
+      ),
+    ).toBe(100);
+  });
+
+  it('frees one per group: 3 units at buy-1-get-1 free exactly one', () => {
+    expect(
+      computeBogoDiscount(
+        [priced(100, 3)],
+        { buyQty: 1, getQty: 1 },
+      ),
+    ).toBe(100);
+  });
+
+  it('frees the cheapest two on 4 units at buy-1-get-1', () => {
+    expect(
+      computeBogoDiscount(
+        [priced(300), priced(200), priced(150), priced(50)],
+        { buyQty: 1, getQty: 1 },
+      ),
+    ).toBe(200); // 50 + 150
+  });
+
+  it('buy-2-get-1 frees one cheapest per three units', () => {
+    expect(
+      computeBogoDiscount(
+        [priced(100, 3)],
+        { buyQty: 2, getQty: 1 },
+      ),
+    ).toBe(100);
+    expect(
+      computeBogoDiscount(
+        [priced(100, 2)],
+        { buyQty: 2, getQty: 1 },
+      ),
+    ).toBe(0);
+  });
+
+  it('is off without a rule, and lines without a unit price earn nothing', () => {
+    expect(computeBogoDiscount([priced(100, 2)], null)).toBe(0);
+    expect(
+      computeBogoDiscount([line(100, 2)], { buyQty: 1, getQty: 1 }),
+    ).toBe(0);
+  });
+
+  it('flows through computeBill inside the discount, capped at the subtotal', () => {
+    const b = computeBill({
+      lines: [priced(250), priced(100)],
+      bogoRule: { buyQty: 1, getQty: 1 },
+    });
+    expect(b.bogoDiscountAmount).toBe(100);
+    expect(b.discountAmount).toBe(100);
+    expect(b.totalDue).toBe(250);
+  });
+
+  it('stacks with a manual discount and never discounts below zero', () => {
+    const b = computeBill({
+      lines: [priced(200, 2)],
+      discountPercent: 50,
+      bogoRule: { buyQty: 1, getQty: 1 },
+    });
+    // 50% of 400 = 200 manual + 200 BOGO = 400, capped at the subtotal.
+    expect(b.discountAmount).toBe(400);
+    expect(b.totalDue).toBe(0);
+  });
+
+  it('service charge is computed after the BOGO discount', () => {
+    const b = computeBill({
+      lines: [priced(250), priced(100)],
+      bogoRule: { buyQty: 1, getQty: 1 },
+      serviceChargePercent: 10,
+    });
+    expect(b.serviceChargeAmount).toBe(25); // 10% of (350 - 100)
+    expect(b.totalDue).toBe(275);
   });
 });
 

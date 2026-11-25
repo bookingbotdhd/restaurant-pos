@@ -53,6 +53,11 @@ interface ReceiptOrder {
   subtotal: number;
   discountAmount: number;
   taxAmount: number;
+  /** Service charge added on top of the discounted subtotal. */
+  serviceChargeAmount?: number;
+  serviceChargePercent?: number;
+  /** Free-item value under BOGO; already inside discountAmount. */
+  bogoDiscountAmount?: number;
   tipAmount: number;
   loyaltyPointsRedeemed: number;
   loyaltyDiscountAmount: number;
@@ -132,6 +137,13 @@ export function buildReceiptHtml({
     .join('');
 
   const totalRows: [string, string][] = [];
+  // BOGO is inside the discount above; name it on that line so the guest
+  // can see why the discount is what it is, without a second row that
+  // would look like a further deduction.
+  const bogoNote =
+    order.bogoDiscountAmount && order.bogoDiscountAmount > 0
+      ? ` · BOGO ${money(order.bogoDiscountAmount)} free`
+      : '';
   if (branch.taxMode === 'EXCLUSIVE') {
     // US-style: show the pre-tax subtotal, then add tax as its own line —
     // order.subtotal/taxAmount are unchanged, this only reslices the
@@ -142,8 +154,8 @@ export function buildReceiptHtml({
     if (order.discountAmount > 0) {
       totalRows.push([
         order.discountPercent && order.discountPercent > 0
-          ? `Discount (${Number(order.discountPercent)}%)`
-          : 'Discount',
+          ? `Discount (${Number(order.discountPercent)}%)${bogoNote}`
+          : `Discount${bogoNote}`,
         `- ${money(order.discountAmount)}`,
       ]);
     }
@@ -155,8 +167,8 @@ export function buildReceiptHtml({
     if (order.discountAmount > 0) {
       totalRows.push([
         order.discountPercent && order.discountPercent > 0
-          ? `Discount (${Number(order.discountPercent)}%)`
-          : 'Discount',
+          ? `Discount (${Number(order.discountPercent)}%)${bogoNote}`
+          : `Discount${bogoNote}`,
         `- ${money(order.discountAmount)}`,
       ]);
     }
@@ -177,6 +189,14 @@ export function buildReceiptHtml({
     totalRows.push([
       `Loyalty (${order.loyaltyPointsRedeemed} pts)`,
       `- ${money(order.loyaltyDiscountAmount)}`,
+    ]);
+  }
+  if (order.serviceChargeAmount && order.serviceChargeAmount > 0) {
+    totalRows.push([
+      order.serviceChargePercent && order.serviceChargePercent > 0
+        ? `Service charge (${Number(order.serviceChargePercent)}%)`
+        : 'Service charge',
+      money(order.serviceChargeAmount),
     ]);
   }
   if (order.tipAmount > 0) {

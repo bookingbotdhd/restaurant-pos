@@ -38,6 +38,10 @@ export class SettingsService {
         loyaltyEarnPerCurrency: true,
         maxManualDiscountPercent: true,
         requireDiscountReason: true,
+        serviceChargePercent: true,
+        bogoEnabled: true,
+        bogoBuyQty: true,
+        bogoGetQty: true,
       },
     });
     const branch = await this.prisma.branch.findFirst({

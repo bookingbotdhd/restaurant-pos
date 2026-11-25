@@ -198,6 +198,10 @@ function GeneralSettingsForm({
   const [adjustValue, setAdjustValue] = useState(String(Math.abs(initialAdjust)));
   const [maxDiscount, setMaxDiscount] = useState(String(Number(restaurant.maxManualDiscountPercent ?? 100)));
   const [requireReason, setRequireReason] = useState(!!restaurant.requireDiscountReason);
+  const [serviceCharge, setServiceCharge] = useState(String(Number(restaurant.serviceChargePercent ?? 0)));
+  const [bogoEnabled, setBogoEnabled] = useState(!!restaurant.bogoEnabled);
+  const [bogoBuyQty, setBogoBuyQty] = useState(String(restaurant.bogoBuyQty ?? 1));
+  const [bogoGetQty, setBogoGetQty] = useState(String(restaurant.bogoGetQty ?? 1));
   const logoInputRef = useRef<HTMLInputElement>(null);
   const uploadLogo = useUploadRestaurantLogo();
 
@@ -239,6 +243,10 @@ function GeneralSettingsForm({
         onlinePriceAdjustValue: (adjustDir === "cheaper" ? -1 : 1) * Math.abs(Number(adjustValue) || 0),
         maxManualDiscountPercent: Math.min(Math.max(Number(maxDiscount) || 0, 0), 100),
         requireDiscountReason: requireReason,
+        serviceChargePercent: Math.min(Math.max(Number(serviceCharge) || 0, 0), 100),
+        bogoEnabled,
+        bogoBuyQty: Math.min(Math.max(Math.floor(Number(bogoBuyQty) || 1), 1), 99),
+        bogoGetQty: Math.min(Math.max(Math.floor(Number(bogoGetQty) || 1), 1), 99),
       },
       {
         onSuccess: () => saveToast.success("Restaurant details saved"),
@@ -566,6 +574,61 @@ function GeneralSettingsForm({
               />
               Require a reason for every discount
             </label>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="r-service-charge">Service charge (%)</Label>
+              <Input
+                id="r-service-charge"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                value={serviceCharge}
+                onChange={(e) => setServiceCharge(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Added at checkout on the bill after discounts. 0 means no service charge.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label>BOGO offer</Label>
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={bogoEnabled}
+                  onChange={(e) => setBogoEnabled(e.target.checked)}
+                />
+                Buy-one-get-one: the cheapest item is free
+              </label>
+              {bogoEnabled && (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-muted-foreground">Buy</span>
+                  <Input
+                    aria-label="Buy quantity"
+                    type="number"
+                    min="1"
+                    max="99"
+                    className="h-9 w-16 text-center"
+                    value={bogoBuyQty}
+                    onChange={(e) => setBogoBuyQty(e.target.value)}
+                  />
+                  <span className="text-muted-foreground">get</span>
+                  <Input
+                    aria-label="Free quantity"
+                    type="number"
+                    min="1"
+                    max="99"
+                    className="h-9 w-16 text-center"
+                    value={bogoGetQty}
+                    onChange={(e) => setBogoGetQty(e.target.value)}
+                  />
+                  <span className="text-muted-foreground">free</span>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

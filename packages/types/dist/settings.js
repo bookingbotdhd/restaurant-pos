@@ -36,6 +36,13 @@ exports.restaurantSettingsSchema = zod_1.z.object({
     onlinePriceAdjustValue: zod_1.z.coerce.number().min(-100000).max(100000).optional(),
     maxManualDiscountPercent: zod_1.z.coerce.number().min(0).max(100).optional(),
     requireDiscountReason: zod_1.z.boolean().optional(),
+    // Service charge added at checkout, as a percent of the discounted
+    // subtotal. 0 = off.
+    serviceChargePercent: zod_1.z.coerce.number().min(0).max(100).optional(),
+    // BOGO offer: buy `bogoBuyQty`, get `bogoGetQty` cheapest items free.
+    bogoEnabled: zod_1.z.boolean().optional(),
+    bogoBuyQty: zod_1.z.coerce.number().int().min(1).max(99).optional(),
+    bogoGetQty: zod_1.z.coerce.number().int().min(1).max(99).optional(),
 });
 const tax_1 = require("./tax");
 exports.branchSettingsSchema = zod_1.z.object({

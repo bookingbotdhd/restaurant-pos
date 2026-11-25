@@ -103,6 +103,9 @@ type BillOverrides = {
   discountAmount: number;
   discountPercent: number;
   taxAmount: number;
+  serviceChargePercent: number;
+  serviceChargeAmount: number;
+  bogoDiscountAmount: number;
   tipAmount: number;
   loyaltyPointsRedeemed: number;
   loyaltyDiscountAmount: number;
@@ -129,6 +132,9 @@ function toEscposOrder(
     subtotal: Number(order.subtotal),
     discountAmount: Number(order.discountAmount),
     taxAmount: Number(order.taxAmount),
+    serviceChargePercent: Number(order.serviceChargePercent),
+    serviceChargeAmount: Number(order.serviceChargeAmount),
+    bogoDiscountAmount: Number(order.bogoDiscountAmount),
     tipAmount: Number(order.tipAmount),
     loyaltyPointsRedeemed: order.loyaltyPointsRedeemed,
     loyaltyDiscountAmount: Number(order.loyaltyDiscountAmount),

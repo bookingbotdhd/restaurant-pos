@@ -28,7 +28,7 @@ import {
 import { usePrintKot, usePrintOrderUsb, type PrintJobResult } from "@/hooks/use-print";
 import { useDisplaySettings } from "@/hooks/use-settings";
 import { api, ApiError } from "@/lib/api";
-import { discountSummary, parseMoney, planPayment } from "@/lib/bill";
+import { discountSummary, parseMoney, planSplitPayments } from "@/lib/bill";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { publishDisplay } from "@/lib/customer-display";
@@ -83,8 +83,22 @@ export function CheckoutPanel({
         status: live.status,
       }
     : orderSnapshot;
-  const [method, setMethod] = useState<PaymentMethodDto>("CASH");
-  const [amountText, setAmountText] = useState("");
+  // Split payment: one line per payment (cash + card + UPI, ...). A blank
+  // amount means "whatever is still due at that line", so a single blank
+  // line is the old pay-the-whole-balance flow.
+  interface SplitLine {
+    id: number;
+    method: PaymentMethodDto;
+    amountText: string;
+  }
+  const [splitLines, setSplitLines] = useState<SplitLine[]>([
+    { id: 1, method: "CASH", amountText: "" },
+  ]);
+  const nextSplitLineId = useRef(2);
+  // Service charge override for this bill (blank = restaurant default) and
+  // the BOGO opt-out; both stop mattering once the first payment locks the bill.
+  const [serviceChargeText, setServiceChargeText] = useState("");
+  const [bogoOff, setBogoOff] = useState(false);
   // The cashier enters either a percentage or a fixed cash amount; the server
   // prices both the same way (and enforces the cap and the reason rule).
   const [discountMode, setDiscountMode] = useState<"PERCENT" | "FLAT">("PERCENT");
@@ -149,8 +163,14 @@ export function CheckoutPanel({
       tipAmount: Number(tipAmount) || 0,
       loyaltyPointsToRedeem: Math.max(0, Math.floor(Number(pointsToRedeem) || 0)),
       couponCode: appliedCoupon || undefined,
+      // Blank = the restaurant default from Settings; 0 switches it off
+      // for this bill. Unchecking BOGO opts this bill out of the offer.
+      ...(serviceChargeText.trim() !== ""
+        ? { serviceChargePercent: Math.min(Math.max(Number(serviceChargeText) || 0, 0), 100) }
+        : {}),
+      ...(bogoOff ? { applyBogo: false } : {}),
     }),
-    [discountMode, discountValue, tipAmount, pointsToRedeem, appliedCoupon],
+    [discountMode, discountValue, tipAmount, pointsToRedeem, appliedCoupon, serviceChargeText, bogoOff],
   );
   const settled = useDebounced(adjustments);
   // Once any payment is on the bill the server fixes its figures and refuses
@@ -186,9 +206,41 @@ export function CheckoutPanel({
   const balance = bill?.balanceDue ?? 0;
   const giftCardApplied = giftCardBalance !== null ? round2(Math.min(giftCardBalance, balance)) : 0;
   const remainingDue = round2(balance - giftCardApplied);
-  const entered = parseMoney(amountText);
-  const plan = planPayment({ remaining: remainingDue, entered, method });
+  // The split plan, in line order: blank = "the rest of the balance here".
+  const plan = planSplitPayments({
+    remaining: remainingDue,
+    lines: splitLines.map((l) => ({
+      method: l.method,
+      entered: parseMoney(l.amountText),
+    })),
+  });
   const split = Math.max(1, Math.floor(Number(splitCount) || 1));
+
+  const updateSplitLine = (id: number, patch: Partial<Omit<SplitLine, "id">>) =>
+    setSplitLines((lines) => lines.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+  const addSplitLine = () => {
+    const id = nextSplitLineId.current;
+    nextSplitLineId.current += 1;
+    setSplitLines((lines) => [...lines, { id, method: "CASH", amountText: "" }]);
+  };
+  const removeSplitLine = (id: number) =>
+    setSplitLines((lines) => (lines.length > 1 ? lines.filter((l) => l.id !== id) : lines));
+  // One line per guest, each an equal share (the last line takes the
+  // rounding remainder). The first line keeps its method; the rest pay cash.
+  const splitEqually = () => {
+    if (!bill || remainingDue <= 0) return;
+    const share = round2(remainingDue / split);
+    const firstMethod = splitLines[0]?.method ?? "CASH";
+    const lines: SplitLine[] = Array.from({ length: split }, (_, i) => ({
+      id: nextSplitLineId.current + i,
+      method: i === 0 ? firstMethod : "CASH",
+      amountText: String(
+        i === split - 1 ? round2(remainingDue - share * (split - 1)) : share,
+      ),
+    }));
+    nextSplitLineId.current += split;
+    setSplitLines(lines);
+  };
 
   const checkGiftCard = async () => {
     if (!giftCardCode) return;
@@ -206,12 +258,13 @@ export function CheckoutPanel({
     }
   };
 
-  // What the QR asks the guest to pay: the amount being recorded now.
-  const upiAmount = plan.valid ? plan.applied : remainingDue;
+  // What the QR asks the guest to pay: the amount on the first UPI split line.
+  const upiLine = plan.lines.find((l) => l.method === "UPI" && l.applied > 0);
+  const upiAmount = upiLine ? upiLine.applied : remainingDue;
   const upiVpa = settings?.restaurant.upiVpa;
   const upiName = settings?.restaurant.upiPayeeName || settings?.restaurant.name;
   const upiUri =
-    method !== "UPI" || !upiVpa || !(upiAmount > 0)
+    !upiLine || !upiVpa || !(upiAmount > 0)
       ? null
       : buildUpiUri({
           vpa: upiVpa,
@@ -243,16 +296,13 @@ export function CheckoutPanel({
 
   const handleCheckout = () => {
     if (!bill || repricing) return;
-    const payments =
-      plan.applied > 0
-        ? [
-            {
-              method,
-              amount: plan.applied,
-              ...(plan.tendered ? { tendered: plan.tendered } : {}),
-            },
-          ]
-        : [];
+    // The split lines, in order; the server re-validates that they cover
+    // the balance exactly (see settlePayments).
+    const payments = plan.payable.map((p) => ({
+      method: p.method,
+      amount: p.applied,
+      ...(p.tendered ? { tendered: p.tendered } : {}),
+    }));
     const dto = {
       customerId: customer?.id,
       ...(locked ? {} : settled),
@@ -268,10 +318,19 @@ export function CheckoutPanel({
       {
         onSuccess: (result) => {
           attempt.current = null;
-          setAmountText("");
+          const id = nextSplitLineId.current;
+          nextSplitLineId.current += 1;
+          setSplitLines([{ id, method: "CASH", amountText: "" }]);
           if (result.settlement.fullyPaid) {
             setCompleted(result);
-            publishDisplay({ kind: "paid", total: Number(result.totalAmount), method });
+            publishDisplay({
+              kind: "paid",
+              total: Number(result.totalAmount),
+              method:
+                plan.payable.length > 1
+                  ? "Split payment"
+                  : plan.payable[0]?.method,
+            });
             playPaymentReceived(formatCurrency(result.totalAmount));
             toast.success("Payment recorded");
           } else {
@@ -367,7 +426,7 @@ export function CheckoutPanel({
 
   const kitchen = live ? kitchenProgress(live.kots.map((k) => k.status)) : null;
   const paidSoFar = live?.payments ?? [];
-  const partialLabel = `Record partial payment · ${formatCurrency(plan.applied)}`;
+  const partialLabel = `Record partial payment · ${formatCurrency(plan.totalApplied)}`;
 
   return (
     <div className="flex h-full flex-col gap-5 overflow-y-auto">
@@ -552,6 +611,48 @@ export function CheckoutPanel({
         </div>
       </div>
 
+      <div className="grid grid-cols-2 gap-4">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="service-charge">Service charge (%)</Label>
+          <Input
+            id="service-charge"
+            type="number"
+            min="0"
+            max="100"
+            inputMode="decimal"
+            className="h-11"
+            value={serviceChargeText}
+            disabled={locked}
+            onChange={(e) => setServiceChargeText(e.target.value)}
+            placeholder={bill ? String(bill.serviceChargePercent) : "0"}
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Blank uses the restaurant default ({settings?.restaurant.serviceChargePercent ?? 0}%).
+            Charged on the bill after discounts.
+          </p>
+        </div>
+        {settings?.restaurant.bogoEnabled && (
+          <div className="flex flex-col gap-2">
+            <Label>BOGO offer</Label>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={!bogoOff}
+                disabled={locked}
+                onChange={(e) => setBogoOff(!e.target.checked)}
+              />
+              Buy {settings.restaurant.bogoBuyQty}, get {settings.restaurant.bogoGetQty} cheapest free
+            </label>
+            {bill && bill.bogoDiscountAmount > 0 && (
+              <p className="text-[11px] text-success">
+                BOGO applied — {formatCurrency(bill.bogoDiscountAmount)} free, inside the discount.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
       {customer && customer.loyaltyPoints > 0 && !locked && (
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
@@ -644,31 +745,64 @@ export function CheckoutPanel({
       ) : (
         <>
           {remainingDue > 0 && (
-            <div className="flex flex-col gap-2">
-              <Label>Payment method</Label>
-              <PaymentMethodButtons methods={METHODS} value={method} onChange={setMethod} />
-            </div>
-          )}
-
-          {remainingDue > 0 && (
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="amount">{method === "CASH" ? "Cash received" : "Amount to pay now"}</Label>
-              <Input
-                id="amount"
-                type="number"
-                inputMode="decimal"
-                min="0"
-                step="0.01"
-                className="h-12 text-lg tabular-nums"
-                value={amountText}
-                placeholder={String(remainingDue)}
-                onChange={(e) => setAmountText(e.target.value)}
-              />
-              {plan.valid && plan.change > 0 && (
-                <p className="rounded-lg bg-success/10 px-3 py-2 text-base font-semibold tabular-nums text-success" role="status">
-                  Change due {formatCurrency(plan.change)}
-                </p>
-              )}
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <Label>Payments — split across methods if needed</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addSplitLine}
+                  disabled={splitLines.length >= 8}
+                >
+                  + Add payment
+                </Button>
+              </div>
+              {splitLines.map((line, i) => (
+                <div key={line.id} className="flex flex-col gap-2 rounded-xl border border-border p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      Payment {i + 1}
+                      {plan.lines[i] && plan.lines[i].applied > 0 && (
+                        <> · {formatCurrency(plan.lines[i].applied)} applied</>
+                      )}
+                    </span>
+                    {splitLines.length > 1 && (
+                      <button
+                        type="button"
+                        className="text-xs font-medium text-destructive hover:underline"
+                        onClick={() => removeSplitLine(line.id)}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  <PaymentMethodButtons
+                    methods={METHODS}
+                    value={line.method}
+                    onChange={(m) => updateSplitLine(line.id, { method: m })}
+                    label={`Payment ${i + 1} method`}
+                  />
+                  <Input
+                    aria-label={`Payment ${i + 1} amount`}
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.01"
+                    className="h-12 text-lg tabular-nums"
+                    value={line.amountText}
+                    placeholder={
+                      plan.lines[i] ? String(plan.lines[i].applied) : String(remainingDue)
+                    }
+                    onChange={(e) => updateSplitLine(line.id, { amountText: e.target.value })}
+                  />
+                  {plan.lines[i] && plan.lines[i].change > 0 && (
+                    <p className="rounded-lg bg-success/10 px-3 py-2 text-base font-semibold tabular-nums text-success" role="status">
+                      Change due {formatCurrency(plan.lines[i].change)}
+                    </p>
+                  )}
+                </div>
+              ))}
               {plan.valid && plan.partial && (
                 <p className="rounded-lg bg-warning/10 px-3 py-2 text-sm text-warning" role="status">
                   Part payment — {formatCurrency(plan.balanceAfter)} will stay due and the table stays open.
@@ -676,13 +810,18 @@ export function CheckoutPanel({
               )}
               {plan.clamped && (
                 <p className="text-xs text-muted-foreground" role="status">
-                  {method} can only pay the balance ({formatCurrency(remainingDue)}); only that will be charged.
+                  A card / UPI line above the balance was cut back to it; only cash can be over-tendered.
+                </p>
+              )}
+              {!plan.valid && splitLines.some((l) => l.amountText.trim() !== "") && (
+                <p className="text-xs text-destructive" role="status">
+                  Check the payment amounts — each one must be more than zero.
                 </p>
               )}
             </div>
           )}
 
-          {method === "UPI" && remainingDue > 0 && (
+          {upiLine && remainingDue > 0 && (
             <div className="flex flex-col items-center gap-2 rounded-xl border border-border bg-white p-4">
               {upiUri ? (
                 <>
@@ -704,7 +843,7 @@ export function CheckoutPanel({
 
           <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
             <Label htmlFor="split" className="text-xs text-muted-foreground">
-              Split between
+              Split equally between
             </Label>
             <div className="flex items-center gap-2">
               <Input
@@ -716,12 +855,20 @@ export function CheckoutPanel({
                 className="h-8 w-16 text-center"
               />
               <span className="text-xs text-muted-foreground">guests</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!bill || remainingDue <= 0}
+                onClick={splitEqually}
+              >
+                Split equally
+              </Button>
             </div>
           </div>
           {split > 1 && bill && (
             <p className="-mt-2 text-center text-xs text-muted-foreground">
-              {formatCurrency(round2(balance / split))} each — enter each guest&apos;s share as a part
-              payment, or collect separately and complete payment once for the whole table.
+              {formatCurrency(round2(balance / split))} each — “Split equally” fills one payment line per guest.
             </p>
           )}
         </>
@@ -805,7 +952,7 @@ function BillSummary({
         <Row label="Subtotal" value={formatCurrency(bill.subtotal)} />
         {bill.discountAmount > 0 && (
           <Row
-            label={`Discount${source ? ` (${source})` : ""}`}
+            label={`Discount${source ? ` (${source})` : ""}${bill.bogoDiscountAmount > 0 ? ` · BOGO ${formatCurrency(bill.bogoDiscountAmount)} free` : ""}`}
             value={`− ${discountSummary(bill.discountPercent, bill.discountAmount, formatCurrency)}`}
             accent
           />
@@ -816,6 +963,12 @@ function BillSummary({
             label={`Loyalty (${bill.loyaltyPointsRedeemed} pts)`}
             value={`− ${formatCurrency(bill.loyaltyDiscountAmount)}`}
             accent
+          />
+        )}
+        {bill.serviceChargeAmount > 0 && (
+          <Row
+            label={`Service charge (${bill.serviceChargePercent}%)`}
+            value={formatCurrency(bill.serviceChargeAmount)}
           />
         )}
         {bill.tipAmount > 0 && <Row label="Tip" value={formatCurrency(bill.tipAmount)} />}

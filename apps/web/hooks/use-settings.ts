@@ -29,6 +29,10 @@ export interface RestaurantSettings {
   onlinePriceAdjustValue: string;
   maxManualDiscountPercent: string;
   requireDiscountReason: boolean;
+  serviceChargePercent: string;
+  bogoEnabled: boolean;
+  bogoBuyQty: number;
+  bogoGetQty: number;
 }
 
 export interface BranchSettings {
@@ -74,6 +78,7 @@ export type DisplayRestaurant = Pick<
   | "id" | "name" | "legalName" | "logoUrl" | "currency" | "timezone"
   | "upiVpa" | "upiPayeeName" | "loyaltyPointValue" | "loyaltyEarnPerCurrency" | "referralEnabled" | "referralSharerPoints" | "referralReferredPoints" | "referralMinPurchase" | "onlineMinOrderAmount" | "onlinePriceAdjustKind" | "onlinePriceAdjustValue"
   | "maxManualDiscountPercent" | "requireDiscountReason"
+  | "serviceChargePercent" | "bogoEnabled" | "bogoBuyQty" | "bogoGetQty"
 >;
 export type DisplayBranch = Pick<
   BranchSettings,
