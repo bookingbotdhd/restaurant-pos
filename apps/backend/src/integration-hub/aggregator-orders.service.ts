@@ -6,13 +6,16 @@ import {
   UnauthorizedException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { OrdersService } from '../modules/orders/orders.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { decryptSecret } from './secret-box';
+import { resolveAggregatorEnvConfig } from './aggregator-config';
 import { getProvider, sourceOf } from './providers/registry';
+import type { IntegrationProvider } from './providers/provider';
 
 /** Deliveries older (or newer) than this are refused, which bounds replays. */
 const MAX_SKEW_SECONDS = 5 * 60;
@@ -27,11 +30,16 @@ export const aggregatorEventSchema = z.discriminatedUnion('event', [
   z.object({
     event: z.literal('order.cancelled'),
     orderId: text(120).min(1),
+    // Only honoured on the generic `aggregator` endpoint (see
+    // resolveOrderSource); the zomato/swiggy endpoints file under their own
+    // name so the source cannot be spoofed.
+    platform: z.enum(['zomato', 'swiggy']).optional(),
     reason: text(300).optional(),
   }),
   z.object({
     event: z.literal('order.created'),
     orderId: text(120).min(1),
+    platform: z.enum(['zomato', 'swiggy']).optional(),
     branchId: text(60).optional(),
     type: z.enum(['DELIVERY', 'TAKEAWAY']).default('DELIVERY'),
     paymentMode: z.enum(['PREPAID', 'COD']).optional(),
@@ -72,6 +80,23 @@ export function signAggregatorBody(
   return `sha256=${createHmac('sha256', secret).update(`${timestamp}.${rawBody}`).digest('hex')}`;
 }
 
+/**
+ * Which platform an order is filed under (`externalSource`). The Zomato and
+ * Swiggy endpoints always file under their own name, so a caller cannot
+ * spoof the source. The single generic `aggregator` endpoint (one webhook
+ * for UrbanPiper / Petpooja / Dotpe forwarding several platforms) files
+ * under `aggregator` unless the event names its platform — without that,
+ * a Zomato order and a Swiggy order arriving through the same aggregator
+ * would be indistinguishable in the order list.
+ */
+export function resolveOrderSource(
+  provider: IntegrationProvider,
+  platform?: 'zomato' | 'swiggy',
+): string {
+  if (provider.key === 'aggregator' && platform) return platform;
+  return sourceOf(provider);
+}
+
 @Injectable()
 export class AggregatorOrdersService {
   private readonly logger = new Logger(AggregatorOrdersService.name);
@@ -79,14 +104,18 @@ export class AggregatorOrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly orders: OrdersService,
+    private readonly config: ConfigService,
   ) {}
 
   private async log(
-    connectionId: string,
+    connectionId: string | null,
     level: 'INFO' | 'WARN' | 'ERROR',
     event: string,
     message: string,
   ) {
+    // Env-configured webhooks have no IntegrationConnection row, so there is
+    // nowhere to write a log line; the delivery itself is still answered.
+    if (!connectionId) return;
     await this.prisma.integrationLog.create({
       data: { connectionId, level, event, message: message.slice(0, 500) },
     });
@@ -105,17 +134,42 @@ export class AggregatorOrdersService {
     const conn = await this.prisma.integrationConnection.findUnique({
       where: { restaurantId_provider: { restaurantId, provider: providerKey } },
     });
-    if (!conn || !conn.enabled || !conn.credentialsEnc) throw deny();
 
+    // Where the signing secret comes from, in order:
+    // 1. The restaurant's saved connection (Settings -> Integrations). If a
+    //    connection exists, it is the only source: a disabled connection is
+    //    never re-enabled by the environment.
+    // 2. The AGGREGATOR_<PROVIDER>_WEBHOOK_SECRET environment variable, for
+    //    single-restaurant self-hosted installs that configure the webhook
+    //    in deployment config instead of the UI (see aggregator-config.ts).
+    //    No variable set means no fallback, so "refused while nothing is
+    //    set up" stays true.
     let secret: string | undefined;
-    try {
-      secret = (
-        JSON.parse(
-          decryptSecret(conn.credentialsEnc, `${restaurantId}:${providerKey}`),
-        ) as Record<string, string>
-      ).webhookSecret;
-    } catch {
-      secret = undefined;
+    const connectionId: string | null = conn?.id ?? null;
+    if (conn) {
+      if (!conn.enabled || !conn.credentialsEnc) throw deny();
+      try {
+        secret = (
+          JSON.parse(
+            decryptSecret(
+              conn.credentialsEnc,
+              `${restaurantId}:${providerKey}`,
+            ),
+          ) as Record<string, string>
+        ).webhookSecret;
+      } catch {
+        secret = undefined;
+      }
+    } else {
+      const env = resolveAggregatorEnvConfig(providerKey, (k) =>
+        this.config.get<string>(k),
+      );
+      if (env.secretTooShort) {
+        this.logger.warn(
+          `AGGREGATOR_${providerKey.toUpperCase()}_WEBHOOK_SECRET is shorter than 16 characters and will not be used`,
+        );
+      }
+      if (env.enabled && env.webhookSecret) secret = env.webhookSecret;
     }
     if (!secret) throw deny();
 
@@ -132,7 +186,7 @@ export class AggregatorOrdersService {
     const okSig = a.length === b.length && timingSafeEqual(a, b);
     if (!okSig || !Number.isFinite(age) || age > MAX_SKEW_SECONDS) {
       await this.log(
-        conn.id,
+        connectionId,
         'WARN',
         'webhook_rejected',
         !okSig
@@ -153,14 +207,17 @@ export class AggregatorOrdersService {
               .map((i) => `${i.path.join('.') || 'body'}: ${i.message}`)
               .join('; ')
           : 'Body is not valid JSON';
-      await this.log(conn.id, 'WARN', 'webhook_invalid', msg);
+      await this.log(connectionId, 'WARN', 'webhook_invalid', msg);
       throw new BadRequestException(`Invalid payload - ${msg}`);
     }
 
-    const markGood = (event: string, message: string) =>
-      this.prisma.integrationConnection
+    const markGood = (event: string, message: string) => {
+      // Env-configured webhooks have no connection row to mark Connected;
+      // the 200 response is the confirmation there.
+      if (!connectionId) return Promise.resolve();
+      return this.prisma.integrationConnection
         .update({
-          where: { id: conn.id },
+          where: { id: connectionId },
           data: {
             status: 'CONNECTED',
             lastSyncAt: new Date(),
@@ -168,15 +225,16 @@ export class AggregatorOrdersService {
             lastError: null,
           },
         })
-        .then(() => this.log(conn.id, 'INFO', event, message));
+        .then(() => this.log(connectionId, 'INFO', event, message));
+    };
 
     if (parsed.event === 'ping') {
       await markGood('webhook_ping', 'Signed test event received');
       return { ok: true };
     }
-    const source = sourceOf(provider);
+    const source = resolveOrderSource(provider, parsed.platform);
     if (parsed.event === 'order.cancelled') {
-      return this.cancel(conn.id, restaurantId, source, parsed, markGood);
+      return this.cancel(connectionId, restaurantId, source, parsed, markGood);
     }
     try {
       const res = await this.createOrder(restaurantId, source, parsed);
@@ -187,12 +245,14 @@ export class AggregatorOrdersService {
       return res;
     } catch (e) {
       const msg = (e as Error).message;
-      await this.prisma.integrationConnection.update({
-        where: { id: conn.id },
-        data: { lastSyncAt: new Date(), lastError: msg.slice(0, 500) },
-      });
+      if (connectionId) {
+        await this.prisma.integrationConnection.update({
+          where: { id: connectionId },
+          data: { lastSyncAt: new Date(), lastError: msg.slice(0, 500) },
+        });
+      }
       await this.log(
-        conn.id,
+        connectionId,
         'ERROR',
         'order_failed',
         `Order ${parsed.orderId}: ${msg}`,
@@ -202,7 +262,7 @@ export class AggregatorOrdersService {
   }
 
   private async cancel(
-    connectionId: string,
+    connectionId: string | null,
     restaurantId: string,
     source: string,
     ev: Extract<AggregatorEvent, { event: 'order.cancelled' }>,

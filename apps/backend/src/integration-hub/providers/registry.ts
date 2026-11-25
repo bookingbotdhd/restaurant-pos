@@ -2,7 +2,7 @@ import { WebhookOrderProvider } from './webhook-order.provider';
 import type { IntegrationProvider } from './provider';
 
 const NOTE =
-  'Zomato and Swiggy do not offer a public order API. They deliver orders through the merchant webhook / an aggregator (UrbanPiper, Petpooja, Dotpe and similar) that your restaurant has an account with. Point it at the webhook URL below and sign requests with the secret.';
+  'Zomato and Swiggy do not offer a public order API. They deliver orders through the merchant webhook / an aggregator (UrbanPiper, Petpooja, Dotpe and similar) that your restaurant has an account with. Point it at the webhook URL below and sign requests with the secret. If you use the single Aggregator endpoint for several platforms, include "platform": "zomato" (or "swiggy") in each order event so orders are filed under the right platform. Full steps: docs/ZOMATO-SWIGGY-ONBOARDING.md.';
 
 const PROVIDERS: IntegrationProvider[] = [
   new WebhookOrderProvider(
