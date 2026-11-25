@@ -1,18 +1,16 @@
 # Licence / activation
 
-How a sold copy of RestroOS is activated with a seller-issued key.
+How a restaurant on the hosted RestroOS service is activated with a host-issued key.
 
 ## What this is — and what it is not
 
 RestroOS stays **AGPL-3.0** (see `LICENSE`). This module only records that
-a particular deployment was activated with a seller-issued key. It does
-**not** change the app's licence, and it does not make the app
-closed-source. Selling the app closed-source would need a separate
-commercial licence — a separate decision, not something this module
-grants. The current model is bunny's own hosted product for multiple
-restaurants (source code and database stay with bunny): the host issues
-a key to each restaurant, and the restaurant activates it — which is
-exactly the flow below.
+a particular restaurant was activated with a host-issued key. It does
+**not** change the app's licence, and it does not make anything
+closed-source. No commercial licence is needed: RestroOS is sold as a
+hosted service for multiple restaurants — source code and database stay
+with the host, restaurants use the hosted product, one activation per
+restaurant.
 
 Activation is also **not an enforcement gate (yet)**: nothing in the app
 stops working without an active licence. This module provides the
@@ -21,7 +19,7 @@ features depend on an active licence is a later product decision.
 
 ## Flow
 
-1. **Seller issues a key** — Settings → Licence → "Issue licence keys"
+1. **Host issues a key** — Settings → Licence → "Issue licence keys"
    (or `POST /v1/licence/issue`). The full key is shown **once**; copy it
    to the buyer (email, invoice, whatever channel you already use). It
    cannot be recovered afterwards — only its hash is stored.
@@ -31,7 +29,7 @@ features depend on an active licence is a later product decision.
 3. **Moving servers** — the restaurant deactivates first (`POST
    /v1/licence/deactivate`); the key returns to ISSUED and can be
    activated again elsewhere.
-4. **Lost / abused key** — the seller revokes it (`POST
+4. **Lost / abused key** — the host revokes it (`POST
    /v1/licence/:id/revoke`). Revocation is terminal and also unbinds an
    active licence.
 
@@ -76,11 +74,11 @@ Prisma model `Licence` (`apps/backend/prisma/schema.prisma`, table
 | `lastFour` | Last four characters (the checksum group) — the only part ever shown back |
 | `plan` | Label, e.g. `STANDARD` — display only, no behaviour attached |
 | `status` | `ISSUED` → `ACTIVE` → `ISSUED` (deactivate) / `REVOKED` / `EXPIRED` |
-| `issuedTo`, `note` | Seller-side notes recorded at issue time |
+| `issuedTo`, `note` | Host-side notes recorded at issue time |
 | `issuedAt`, `issuedById`, `expiresAt` | Issue metadata; expiry blocks (re-)activation only |
 | `restaurantId`, `activatedAt`, `activatedById` | Activation binding — set only while `ACTIVE` |
 | `instanceId` | Free-form label of the activated deployment (hostname, server label), supplied at activation — the codebase has no server instance id of its own |
-| `revokedAt` | When the seller revoked the key |
+| `revokedAt` | When the host revoked the key |
 
 ## Endpoints
 
@@ -106,19 +104,19 @@ has one.
 Settings → Licence (`apps/web/app/(dashboard)/settings/licence/page.tsx`,
 hooks in `apps/web/hooks/use-licence.ts`): status card with the activate
 form (key + optional instance label) or the active licence with a
-Deactivate button, plus the seller's issue form and issued-keys table
+Deactivate button, plus the host's issue form and issued-keys table
 with Revoke. The tab is gated to `settings.manage`.
 
 ## Known limitations
 
-- Issuing is gated to `settings.manage`, i.e. a restaurant admin. In a
-  self-hosted deployment the seller issues from their own admin account;
-  a hosted multi-tenant setup should restrict `POST /v1/licence/issue`
-  (and the issued-keys list) to seller staff instead.
+- Issuing is gated to `settings.manage`, i.e. a restaurant admin. That
+  is a stopgap: issuing is a host-side action for the hosted product, so
+  a multi-tenant setup should restrict `POST /v1/licence/issue` (and the
+  issued-keys list) to host staff instead of restaurant admins.
 - Expiry only blocks (re-)activation; it does not cut off an
   already-active licence, and no feature is gated on having an active
   licence at all.
 - `plan` is a label only — what a plan entitles a restaurant to is a
-  seller decision, not something this module enforces.
+  host decision, not something this module enforces.
 - `instanceId` is caller-supplied and unverified; it is a label for the
-  seller to tell deployments apart, not a device fingerprint.
+  host to tell deployments apart, not a device fingerprint.

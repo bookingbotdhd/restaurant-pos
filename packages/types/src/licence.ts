@@ -24,9 +24,9 @@ export const licenceKeySchema = z
 export const issueLicenceSchema = z.object({
   // Label for the key, e.g. "STANDARD" or "ANNUAL". Shown in the UI; it
   // carries no behaviour — what a plan entitles the restaurant to is a
-  // seller decision, not something this module enforces.
+  // host decision, not something this module enforces.
   plan: z.string().trim().min(1).max(40).optional(),
-  // Who the key is for (restaurant / buyer name) — a seller-side note,
+  // Who the key is for (restaurant / buyer name) — a host-side note,
   // recorded before the key is ever activated.
   issuedTo: z.string().trim().max(120).optional(),
   note: z.string().trim().max(280).optional(),
@@ -45,7 +45,7 @@ export const activateLicenceSchema = z.object({
   key: licenceKeySchema,
   // Free-form identifier of the deployment being activated (hostname,
   // server label). The codebase has no server instance id of its own, so
-  // the activator supplies one; it is recorded for the seller to tell
+  // the activator supplies one; it is recorded for the host to tell
   // deployments apart and is not verified.
   instanceId: z.string().trim().min(1).max(120).optional(),
 });

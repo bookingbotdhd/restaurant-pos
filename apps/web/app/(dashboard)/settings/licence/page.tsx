@@ -82,7 +82,7 @@ function LicenceStatusCard() {
 
   const onActivate = () => {
     if (!key.trim()) {
-      toast.error("Enter the licence key the seller gave you");
+      toast.error("Enter the licence key the host gave you");
       return;
     }
     activate.mutate(
@@ -110,7 +110,7 @@ function LicenceStatusCard() {
       <div>
         <h2 className="text-[18px] font-medium text-foreground">Licence</h2>
         <p className="text-sm text-muted-foreground">
-          Activate this restaurant with the licence key the seller issued you. One licence is active per
+          Activate this restaurant with the licence key the host issued you. One licence is active per
           restaurant at a time.
         </p>
       </div>
@@ -245,7 +245,7 @@ function IssueLicenceCard() {
       <div>
         <h2 className="text-[18px] font-medium text-foreground">Issue licence keys</h2>
         <p className="text-sm text-muted-foreground">
-          For the seller: generate a key and hand it to a restaurant, which activates it above. The full key is
+          For the host: generate a key and hand it to a restaurant, which activates it above. The full key is
           shown once, right after issuing — copy it to the buyer then; it cannot be recovered afterwards.
         </p>
       </div>

@@ -1,21 +1,20 @@
 // Licence activation.
 //
-// Flow (see docs/LICENCE.md for the human version): the seller issues a
+// Flow (see docs/LICENCE.md for the human version): the host issues a
 // key with `issue()` and hands the raw key to a restaurant (by email,
 // invoice, whatever channel they already use). The restaurant pastes it
 // into Settings → Licence and calls `activate()`. One licence is active
 // per restaurant at a time; `deactivate()` releases it (e.g. moving to a
 // new server) so the same key can be activated again elsewhere, while
-// `revoke()` is the seller's terminal kill-switch for a lost or abused key.
+// `revoke()` is the host's terminal kill-switch for a lost or abused key.
 //
 // What this is NOT: it does not change the app's licence. RestroOS stays
 // AGPL-3.0 (see LICENSE); this module only records that a particular
-// deployment was activated with a seller-issued key. Selling the app
-// closed-source would need a separate commercial licence — a separate
-// decision, not something this module grants. The current model is
-// bunny's hosted product for multiple restaurants (source and database
-// stay with bunny): the host issues keys and each restaurant activates
-// one, which is the flow above.
+// deployment was activated with a host-issued key. No commercial licence
+// is needed: RestroOS is sold as a hosted service for multiple
+// restaurants (source code and database stay with the host), and this is
+// the per-restaurant activation for that hosted product — the host issues
+// a key per restaurant and the restaurant activates it.
 //
 // Storage rules, following the IntegrationApiKey pattern: only the
 // SHA-256 hash of a key is stored (`keyHash`, unique); the raw key is
@@ -85,11 +84,11 @@ export class LicenceService {
 
   /**
    * Issues a new key. The raw key is returned once, in this response
-   * only — the caller (the seller) must pass it to the restaurant
+   * only — the caller (the host) must pass it to the restaurant
    * themselves; it cannot be recovered afterwards. Gated to
-   * settings.manage: in a self-hosted deployment the seller issues from
-   * their own admin account; a hosted multi-tenant setup would restrict
-   * this endpoint to seller staff instead.
+   * settings.manage for now; issuing is a host-side action for the hosted
+   * product, so a multi-tenant setup should restrict this endpoint (and
+   * the issued-keys list) to host staff instead of restaurant admins.
    */
   async issue(actor: SessionUser, dto: IssueLicenceDto) {
     const raw = generateLicenceKey();

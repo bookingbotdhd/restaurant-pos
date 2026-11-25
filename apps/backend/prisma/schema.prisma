@@ -425,10 +425,10 @@ model IntegrationApiKey {
 // Licence / activation
 // ---------------------------------------------------------------------------
 
-// Lifecycle of a seller-issued licence key (see docs/LICENCE.md). A key
+// Lifecycle of a host-issued licence key (see docs/LICENCE.md). A key
 // is ISSUED when created, ACTIVE while bound to a restaurant, back to
 // ISSUED when that restaurant deactivates it (so it can be activated
-// again, e.g. on a new server), REVOKED when the seller kills it outright,
+// again, e.g. on a new server), REVOKED when the host kills it outright,
 // and EXPIRED when its expiresAt passes before activation.
 enum LicenceStatus {
   ISSUED
@@ -437,7 +437,7 @@ enum LicenceStatus {
   EXPIRED
 }
 
-// One row per key the seller has issued. Only the SHA-256 hash of the key
+// One row per key the host has issued. Only the SHA-256 hash of the key
 // is stored (`keyHash`, unique) — the raw key is shown once, at issue
 // time, and can never be recovered from the database. `restaurantId` is
 // set only while the key is ACTIVE; it is null for a key that was never
@@ -445,8 +445,9 @@ enum LicenceStatus {
 // id in the codebase, so `instanceId` is a free-form label supplied by the
 // activator (hostname, server label) to tell deployments apart.
 // This records activation only — it does NOT change the app's licence:
-// RestroOS stays AGPL-3.0 (see LICENSE). Selling the app closed-source
-// needs a separate commercial licence, a separate decision.
+// RestroOS stays AGPL-3.0 (see LICENSE). No commercial licence is
+// needed: RestroOS is sold as a hosted service, one activation per
+// restaurant, with the source code and database staying with the host.
 model Licence {
   id     String @id @default(cuid())
   keyHash String @unique
