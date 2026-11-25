@@ -29,6 +29,7 @@ const TABS: SettingsTab[] = [
   { label: "Integrations", href: "/settings/integrations", permission: "settings.manage" },
   { label: "Payments", href: "/settings/payment-gateways", permission: "settings.manage" },
   { label: "API Keys", href: "/settings/api-keys" },
+  { label: "Licence", href: "/settings/licence", permission: "settings.manage" },
   { label: "Security", href: "/settings/security" },
   { label: "Webhooks", href: "/settings/webhooks", permission: "settings.manage" },
   { label: "VERI*FACTU", href: "/settings/verifactu", permission: "settings.manage", country: "ES" },

@@ -92,6 +92,7 @@ model Restaurant {
   branches                  Branch[]
   roles                     Role[]
   users                     User[]
+  licences                  Licence[]
   integrationApiKeys        IntegrationApiKey[]
   webhookEndpoints          WebhookEndpoint[]
   integrationConnections    IntegrationConnection[]
@@ -418,6 +419,61 @@ model IntegrationApiKey {
   @@index([restaurantId])
   @@index([branchId])
   @@map("integration_api_keys")
+}
+
+// ---------------------------------------------------------------------------
+// Licence / activation
+// ---------------------------------------------------------------------------
+
+// Lifecycle of a seller-issued licence key (see docs/LICENCE.md). A key
+// is ISSUED when created, ACTIVE while bound to a restaurant, back to
+// ISSUED when that restaurant deactivates it (so it can be activated
+// again, e.g. on a new server), REVOKED when the seller kills it outright,
+// and EXPIRED when its expiresAt passes before activation.
+enum LicenceStatus {
+  ISSUED
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+// One row per key the seller has issued. Only the SHA-256 hash of the key
+// is stored (`keyHash`, unique) — the raw key is shown once, at issue
+// time, and can never be recovered from the database. `restaurantId` is
+// set only while the key is ACTIVE; it is null for a key that was never
+// activated, was deactivated, or was revoked. There is no server instance
+// id in the codebase, so `instanceId` is a free-form label supplied by the
+// activator (hostname, server label) to tell deployments apart.
+// This records activation only — it does NOT change the app's licence:
+// RestroOS stays AGPL-3.0 (see LICENSE). Selling the app closed-source
+// needs a separate commercial licence, a separate decision.
+model Licence {
+  id     String @id @default(cuid())
+  keyHash String @unique
+  // Last four characters of the key (the checksum group) — the only part
+  // of a key ever shown back in the UI or logs.
+  lastFour String
+
+  plan     String  @default("STANDARD")
+  issuedTo String?
+  note     String?
+  status   LicenceStatus @default(ISSUED)
+
+  issuedAt  DateTime  @default(now())
+  issuedById String?
+  expiresAt DateTime?
+
+  // Activation binding — all null unless status is ACTIVE.
+  restaurantId  String?
+  restaurant    Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
+  activatedAt   DateTime?
+  activatedById String?
+  instanceId    String?
+  revokedAt     DateTime?
+
+  @@index([restaurantId])
+  @@index([status])
+  @@map("licences")
 }
 
 model UserBranch {
