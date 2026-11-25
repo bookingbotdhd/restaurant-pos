@@ -196,6 +196,9 @@ export default function TablesPage() {
               <Legend status="OCCUPIED" />
               <Legend status="RESERVED" />
               <Legend status="CLEANING" />
+              {/* Timer states, matching the ElapsedTimer thresholds on the tiles. */}
+              <StatusBadge tone="warning">Seated 60+ min</StatusBadge>
+              <StatusBadge tone="danger">Seated 2h+</StatusBadge>
             </div>
           </div>
 

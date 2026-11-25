@@ -105,18 +105,19 @@ export function ManagerPinDialog({
               required
               autoFocus
               placeholder="4–8 digits"
+              className="h-12 text-center text-lg tabular-nums"
             />
+            {error && (
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+            )}
             <p className="text-[11px] text-muted-foreground">
               Only an owner, administrator or restaurant manager PIN works here. A
               manager without a PIN set cannot approve — set one under Settings →
               Staff.
             </p>
           </div>
-          {error && (
-            <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </p>
-          )}
           <DialogFooter>
             <Button type="button" variant="outline" className="h-11" onClick={close}>
               Cancel

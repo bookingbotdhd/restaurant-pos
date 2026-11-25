@@ -14,7 +14,17 @@ import { TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { QueryError } from "@/components/ui/query-error";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   FORECAST_DAY_OPTIONS,
   useForecast,
@@ -61,7 +71,7 @@ function chartRows(forecast: SalesForecast) {
 
 export function ForecastWidget({ branchId }: { branchId: string | null }) {
   const [days, setDays] = useState<(typeof FORECAST_DAY_OPTIONS)[number]>(7);
-  const { data, isLoading, error } = useForecast(branchId, days);
+  const { data, isLoading, isFetching, error, refetch } = useForecast(branchId, days);
 
   const hasForecast = !!data?.days.some((d) => d.forecastSales !== null);
 
@@ -87,7 +97,7 @@ export function ForecastWidget({ branchId }: { branchId: string | null }) {
                 key={n}
                 variant={days === n ? "secondary" : "ghost"}
                 size="sm"
-                className="h-7 px-2.5 text-xs"
+                className="px-2.5 text-xs"
                 onClick={() => setDays(n)}
               >
                 {n} days
@@ -99,12 +109,23 @@ export function ForecastWidget({ branchId }: { branchId: string | null }) {
 
       {isLoading ? (
         <Skeleton className="h-56 rounded-xl" />
-      ) : error || !data ? (
-        <p className="py-4 text-sm text-muted-foreground">Couldn&apos;t load the forecast right now.</p>
-      ) : !hasForecast ? (
+      ) : error ? (
+        <QueryError
+          error={error}
+          what="the forecast"
+          onRetry={() => void refetch()}
+          retrying={isFetching}
+        />
+      ) : !data ? (
         <p className="py-4 text-sm text-muted-foreground">
-          No sales history yet — the forecast will appear once this branch has paid orders.
+          Pick a branch to see its forecast.
         </p>
+      ) : !hasForecast ? (
+        <EmptyState
+          icon={TrendingUp}
+          title="Not enough history yet"
+          description="Forecasts appear after 14 days of sales."
+        />
       ) : (
         <>
           <div className="h-56">
@@ -143,7 +164,7 @@ export function ForecastWidget({ branchId }: { branchId: string | null }) {
                 <Line
                   type="monotone"
                   dataKey="actual"
-                  stroke="var(--success)"
+                  stroke="var(--chart-2)"
                   strokeWidth={2}
                   dot={false}
                   activeDot={{ r: 4 }}
@@ -152,7 +173,7 @@ export function ForecastWidget({ branchId }: { branchId: string | null }) {
                 <Line
                   type="monotone"
                   dataKey="forecast"
-                  stroke="var(--primary)"
+                  stroke="var(--chart-1)"
                   strokeWidth={2}
                   strokeDasharray="6 4"
                   dot={false}
@@ -169,34 +190,34 @@ export function ForecastWidget({ branchId }: { branchId: string | null }) {
           </p>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="text-left text-xs text-muted-foreground">
-                <tr>
-                  <th className="py-1 pr-4 font-medium">Day</th>
-                  <th className="py-1 pr-4 font-medium">Forecast sales</th>
-                  <th className="py-1 pr-4 font-medium">Usual range</th>
-                  <th className="py-1 pr-4 font-medium">Orders</th>
-                  <th className="py-1 font-medium">Confidence</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Day</TableHead>
+                  <TableHead>Forecast sales</TableHead>
+                  <TableHead>Usual range</TableHead>
+                  <TableHead>Orders</TableHead>
+                  <TableHead>Confidence</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {data.days.map((d) => (
-                  <tr key={d.date} className="border-t border-border">
-                    <td className="py-2 pr-4 font-medium text-foreground">
+                  <TableRow key={d.date}>
+                    <TableCell className="font-medium text-foreground">
                       {weekdayShort(d.date)}, {shortDay(d.date)}
-                    </td>
-                    <td className="py-2 pr-4 tabular-nums text-foreground">
+                    </TableCell>
+                    <TableCell className="tabular-nums text-foreground">
                       {d.forecastSales === null ? "—" : formatCurrency(d.forecastSales)}
-                    </td>
-                    <td className="py-2 pr-4 tabular-nums text-muted-foreground">
+                    </TableCell>
+                    <TableCell className="tabular-nums text-muted-foreground">
                       {d.lowSales === null || d.highSales === null
                         ? "—"
                         : `${formatCurrency(d.lowSales)} – ${formatCurrency(d.highSales)}`}
-                    </td>
-                    <td className="py-2 pr-4 tabular-nums text-foreground">
+                    </TableCell>
+                    <TableCell className="tabular-nums text-foreground">
                       {d.forecastOrders === null ? "—" : `~${d.forecastOrders}`}
-                    </td>
-                    <td className="py-2">
+                    </TableCell>
+                    <TableCell>
                       <Badge
                         variant="secondary"
                         title={d.basis}
@@ -209,11 +230,11 @@ export function ForecastWidget({ branchId }: { branchId: string | null }) {
                       >
                         {CONFIDENCE_LABEL[d.confidence]}
                       </Badge>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
 
           <div className="flex flex-col gap-1 text-xs text-muted-foreground">

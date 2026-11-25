@@ -15,6 +15,8 @@ import { KitchenProgressWidget } from "@/components/pos/kitchen-progress-widget"
 import { ModifierPickerDialog } from "@/components/pos/modifier-picker-dialog";
 import { PosTablePicker } from "@/components/pos/pos-table-picker";
 import { ProductGrid } from "@/components/pos/product-grid";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useBranch } from "@/hooks/use-branch";
 import type { MenuItem } from "@/hooks/use-menu";
@@ -293,15 +295,18 @@ function PosPageInner() {
         <div className="min-w-0 flex-1">
           <KitchenProgressWidget branchId={branchId} />
         </div>
-        <button
+        <Button
           type="button"
+          variant="outline"
+          className="h-11 shrink-0"
           onClick={() => setHeldOpen((v) => !v)}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          aria-expanded={heldOpen}
           title="Parked orders — resume one to keep serving or bill it"
         >
           <Pause className="h-3.5 w-3.5" />
-          Held{heldOrders.length > 0 ? ` (${heldOrders.length})` : ""}
-        </button>
+          Held
+          {heldOrders.length > 0 && <Badge variant="secondary">{heldOrders.length}</Badge>}
+        </Button>
         <a
           href="/customer-display"
           target="_blank"
