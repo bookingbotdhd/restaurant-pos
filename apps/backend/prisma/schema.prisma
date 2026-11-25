@@ -99,6 +99,7 @@ model Restaurant {
   paymentGatewayCatalog     PaymentGatewayCatalogEntry[]
   gatewayPayments           GatewayPayment[]
   gatewayRefunds            GatewayRefund[]
+  whatsappBillSends         WhatsAppBillSend[]
 
   @@map("restaurants")
 }
@@ -442,6 +443,49 @@ model AuditLog {
 
   @@index([entity, entityId])
   @@map("audit_logs")
+}
+
+enum WhatsAppBillSendStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+// One row per bill sent on WhatsApp, tracking delivery. The append-only
+// audit log records that a send was attempted; this row is what Meta's
+// status webhook advances (QUEUED → SENT → DELIVERED → READ, or FAILED),
+// matched by the provider's message id. The recipient is stored masked
+// only — the full number stays on the order/customer, where it belongs.
+model WhatsAppBillSend {
+  id           String                 @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant             @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  branchId     String
+  orderId      String
+  order        Order                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  // Staff member who tapped send (plain id, no relation — the audit row
+  // carries the actor; this table is for delivery status, not identity).
+  sentById     String?
+  provider     String
+  templateName String?
+  toMasked     String
+  status       WhatsAppBillSendStatus @default(QUEUED)
+  // Meta's message id (wamid.…), unique so a receipt can only ever match
+  // one row. Null while QUEUED and on a FAILED send that never got one.
+  providerMessageId String? @unique
+  // Provider's failure reason, truncated (e.g. Meta error title/message).
+  error        String?
+  sentAt       DateTime?
+  deliveredAt  DateTime?
+  readAt       DateTime?
+  failedAt     DateTime?
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+
+  @@index([orderId, createdAt])
+  @@map("whatsapp_bill_sends")
 }
 
 // In-app notifications (Phase 3 of the RBAC/audit/backup plan) — bell icon +
@@ -1507,6 +1551,7 @@ model Order {
   payments            Payment[]
   giftCardRedemptions GiftCardRedemption[]
   refunds             Refund[]
+  whatsappBillSends   WhatsAppBillSend[]
 
   @@unique([branchId, orderNumber])
   @@unique([branchId, clientRequestId])

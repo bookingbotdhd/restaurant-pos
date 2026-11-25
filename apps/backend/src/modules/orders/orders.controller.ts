@@ -434,6 +434,7 @@ export class OrdersController {
       dto,
     );
     return this.whatsappBill.sendBill({
+      restaurantId: user.restaurantId,
       branchId,
       orderId: id,
       userId: user.id,

@@ -61,6 +61,8 @@ export interface BillSendResult {
   ok: boolean;
   /** Provider's message id, when the provider returns one. */
   messageId?: string | null;
+  /** Template the provider sent with, when it uses one (Meta). */
+  templateName?: string | null;
 }
 
 /**
