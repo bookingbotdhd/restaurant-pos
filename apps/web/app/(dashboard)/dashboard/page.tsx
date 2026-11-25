@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatCard } from "@/components/ui/stat-card";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { useBranch } from "@/hooks/use-branch";
 import { useManagedOrders } from "@/hooks/use-orders";
@@ -28,74 +29,6 @@ import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const ONLINE_ORDER_TYPES = new Set(["QR_ORDER", "KIOSK"]);
-
-function StatCard({
-  label,
-  value,
-  icon: Icon,
-  accent,
-  href,
-  size = "default",
-  className,
-}: {
-  label: string;
-  value: string;
-  icon: typeof Wallet;
-  accent?: "success" | "warning";
-  /** Where the full records behind this number live. */
-  href: string;
-  /** hero = the one number to look at first; compact = supporting figures. */
-  size?: "hero" | "default" | "compact";
-  className?: string;
-}) {
-  const hero = size === "hero";
-  const compact = size === "compact";
-  return (
-    <Link
-      href={href}
-      aria-label={`${label}: ${value}. Open details`}
-      className={cn(
-        "group block rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
-        className,
-      )}
-    >
-    <Card
-      className={cn(
-        "flex h-full flex-col transition group-hover:border-primary/40 group-hover:shadow-md",
-        hero
-          ? "justify-between gap-6 border-success/25 bg-gradient-to-br from-success/10 via-card to-card p-6 sm:p-7"
-          : compact
-            ? "gap-2 p-4"
-            : "gap-3 p-4 sm:p-6",
-        accent === "warning" && !hero && "border-warning/40",
-      )}
-    >
-      <div className="flex items-center justify-between">
-        <span className={cn("font-medium text-muted-foreground", compact ? "text-xs" : "text-[13px]")}>{label}</span>
-        <div
-          className={cn(
-            "flex items-center justify-center rounded-xl",
-            compact ? "h-7 w-7" : "h-9 w-9",
-            accent === "success" && "bg-success/10 text-success",
-            accent === "warning" && "bg-warning/10 text-warning",
-            !accent && "bg-primary/10 text-primary",
-          )}
-        >
-          <Icon className={compact ? "h-4 w-4" : "h-[18px] w-[18px]"} />
-        </div>
-      </div>
-      <span
-        className={cn(
-          "font-semibold tabular-nums tracking-tight text-foreground",
-          hero ? "text-4xl sm:text-5xl" : compact ? "text-xl sm:text-2xl" : "text-2xl sm:text-3xl",
-        )}
-      >
-        {value}
-      </span>
-    </Card>
-    </Link>
-  );
-}
 
 function TableStatusRow({
   label,
@@ -205,13 +138,13 @@ export default function DashboardPage() {
 
       <div {...slot("top", "kpis")}>
       {isLoading || !data ? (
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-5 [&>a:last-child:nth-child(odd)]:col-span-2 xl:[&>a:last-child:nth-child(odd)]:col-span-1">
+        <div className="grid grid-cols-2 gap-4 xl:grid-cols-5 [&>a:last-child:nth-child(odd)]:col-span-2 xl:[&>a:last-child:nth-child(odd)]:col-span-1">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className={cn("h-[120px] rounded-2xl", i === 0 && "col-span-2 xl:col-span-2")} />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-5 [&>a:last-child:nth-child(odd)]:col-span-2 xl:[&>a:last-child:nth-child(odd)]:col-span-1">
+        <div className="grid grid-cols-2 gap-4 xl:grid-cols-5 [&>a:last-child:nth-child(odd)]:col-span-2 xl:[&>a:last-child:nth-child(odd)]:col-span-1">
           <StatCard
             label="Today's Revenue"
             value={formatCurrency(data.todayRevenue)}
@@ -248,7 +181,7 @@ export default function DashboardPage() {
       </div>
 
       {data && (
-        <div {...slot("top", "attention", "grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-5 [&>a:last-child:nth-child(odd)]:col-span-2 xl:[&>a:last-child:nth-child(odd)]:col-span-1")}>
+        <div {...slot("top", "attention", "grid grid-cols-2 gap-4 xl:grid-cols-5 [&>a:last-child:nth-child(odd)]:col-span-2 xl:[&>a:last-child:nth-child(odd)]:col-span-1")}>
           <StatCard
             size="compact"
             label="Pending payments"
@@ -447,24 +380,20 @@ function PendingOrdersBanner({ branchId }: { branchId: string | null }) {
   const { data } = useManagedOrders(branchId, "pending");
   if (!data || data.length === 0) return null;
   return (
-    <Card className="flex flex-col gap-3 border-primary/40 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+    <Card className="flex flex-col gap-3 border-primary/40 bg-primary/5 p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
       <div>
         <p className="text-sm font-semibold text-foreground">
           {data.length} online order{data.length === 1 ? "" : "s"} waiting for you
         </p>
-        <p className="text-xs text-muted-foreground">Accept or reject so the kitchen can start.</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">Accept or reject so the kitchen can start.</p>
       </div>
       <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => openEntity("Order", data[0].id)}
-          className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"
-        >
+        <Button size="sm" onClick={() => openEntity("Order", data[0].id)}>
           Review #{data[0].orderNumber}
-        </button>
-        <Link href="/orders" className="rounded-lg border border-border px-3 py-1.5 text-sm">
+        </Button>
+        <Button size="sm" variant="outline" render={<Link href="/orders" />}>
           All orders
-        </Link>
+        </Button>
       </div>
     </Card>
   );

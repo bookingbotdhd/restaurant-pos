@@ -10,6 +10,9 @@ import { TableTile } from "@/components/tables/table-tile";
 import { WaitlistPanel } from "@/components/tables/waitlist-panel";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatusBadge, TABLE_STATUS_TONE } from "@/components/ui/status-badge";
 import { BranchNotice } from "@/components/layout/branch-notice";
 import { QueryError } from "@/components/ui/query-error";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -86,22 +89,22 @@ export default function TablesPage() {
   return (
     <div className="flex flex-col gap-6">
       <TableRequestsBar branchId={branchId} />
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-        <div>
-          <h1 className="text-[32px] font-semibold tracking-tight text-foreground">Tables</h1>
-          <p className="text-sm text-muted-foreground">
-            {editMode
-              ? "Drag tables to match your floor — changes save automatically"
-              : "Live floor status — tap a table to update it"}
-          </p>
-        </div>
-        {canManage && floors && floors.length > 0 && (
-          <Button variant={editMode ? "default" : "outline"} size="sm" className="h-11 w-full sm:h-8 sm:w-auto" onClick={() => setEditMode((v) => !v)}>
-            <LayoutGrid className="h-4 w-4" />
-            {editMode ? "Done editing" : "Edit floor plan"}
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        title="Tables"
+        description={
+          editMode
+            ? "Drag tables to match your floor — changes save automatically"
+            : "Live floor status — tap a table to update it"
+        }
+        actions={
+          canManage && floors && floors.length > 0 ? (
+            <Button variant={editMode ? "default" : "outline"} onClick={() => setEditMode((v) => !v)}>
+              <LayoutGrid className="h-4 w-4" />
+              {editMode ? "Done editing" : "Edit floor plan"}
+            </Button>
+          ) : undefined
+        }
+      />
 
       {isLoading ? (
         <Skeleton className="h-96 rounded-2xl" />
@@ -188,21 +191,28 @@ export default function TablesPage() {
               </div>
             </Card>
 
-            <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-              <Legend color="bg-success" label="Available" />
-              <Legend color="bg-primary" label="Occupied" />
-              <Legend color="bg-warning" label="Reserved" />
-              <Legend color="bg-muted-foreground" label="Cleaning / out of service" />
+            <div className="flex flex-wrap gap-2">
+              <Legend status="AVAILABLE" />
+              <Legend status="OCCUPIED" />
+              <Legend status="RESERVED" />
+              <Legend status="CLEANING" />
             </div>
           </div>
 
           <WaitlistPanel branchId={branchId} availableTables={availableTables} />
         </div>
       ) : (
-        <Card className="flex flex-col items-center gap-3 p-16 text-center">
-          <p className="text-sm font-medium text-foreground">No floors yet</p>
-          <p className="text-sm text-muted-foreground">{canManage ? "Add your first floor to start building the layout." : "Ask a manager to set up the floor plan."}</p>
-          {canManage && <AddFloorDialog branchId={branchId} />}
+        <Card className="overflow-hidden">
+          <EmptyState
+            icon={LayoutGrid}
+            title="No floors yet"
+            description={
+              canManage
+                ? "Add your first floor to start building the layout."
+                : "Ask a manager to set up the floor plan."
+            }
+            action={canManage ? <AddFloorDialog branchId={branchId} /> : undefined}
+          />
         </Card>
       )}
 
@@ -220,11 +230,12 @@ export default function TablesPage() {
   );
 }
 
-function Legend({ color, label }: { color: string; label: string }) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <span className={`h-2.5 w-2.5 rounded-full ${color}`} />
-      {label}
-    </div>
-  );
+function Legend({ status }: { status: "AVAILABLE" | "OCCUPIED" | "RESERVED" | "CLEANING" }) {
+  const labels: Record<typeof status, string> = {
+    AVAILABLE: "Available",
+    OCCUPIED: "Occupied",
+    RESERVED: "Reserved",
+    CLEANING: "Cleaning / out of service",
+  };
+  return <StatusBadge tone={TABLE_STATUS_TONE[status]}>{labels[status]}</StatusBadge>;
 }

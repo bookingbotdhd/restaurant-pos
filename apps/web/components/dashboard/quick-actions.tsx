@@ -1,26 +1,39 @@
 import { CalendarPlus, ChefHat, LayoutGrid, ShoppingCart, UtensilsCrossed } from "lucide-react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const ACTIONS = [
-  { href: "/pos", label: "New order", icon: ShoppingCart },
-  { href: "/tables", label: "Tables", icon: LayoutGrid },
-  { href: "/reservations", label: "New reservation", icon: CalendarPlus },
-  { href: "/kds", label: "Kitchen display", icon: ChefHat },
-  { href: "/menu", label: "Menu", icon: UtensilsCrossed },
+  { href: "/pos", label: "New order", hint: "Take an order", icon: ShoppingCart },
+  { href: "/tables", label: "Tables", hint: "Floor status", icon: LayoutGrid },
+  { href: "/reservations", label: "New reservation", hint: "Book a table", icon: CalendarPlus },
+  { href: "/kds", label: "Kitchen display", hint: "Live tickets", icon: ChefHat },
+  { href: "/menu", label: "Menu", hint: "Items & prices", icon: UtensilsCrossed },
 ];
 
-// One-tap jumps into the flows staff reach for most during service — sits
-// right under the header so it's the first thing visible, not buried below
-// the stat cards.
+// One-tap jumps into the flows staff reach for most during service — big
+// touch tiles right under the header, each with an icon, a label and a hint
+// of what it does, so a new cashier reads the row once and never again.
 export function QuickActions() {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
       {ACTIONS.map((action) => (
-        <Button key={action.href} variant="outline" size="sm" render={<Link href={action.href} />}>
-          <action.icon className="h-4 w-4" />
-          {action.label}
-        </Button>
+        <Link
+          key={action.href}
+          href={action.href}
+          className={cn(
+            "group flex min-h-[76px] items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3",
+            "shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md",
+            "focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:translate-y-0",
+          )}
+        >
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+            <action.icon className="h-5 w-5" />
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-semibold text-foreground">{action.label}</span>
+            <span className="block truncate text-xs text-muted-foreground">{action.hint}</span>
+          </span>
+        </Link>
       ))}
     </div>
   );

@@ -9,6 +9,7 @@ import { EditCustomerDialog } from "@/components/customers/edit-customer-dialog"
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBranch } from "@/hooks/use-branch";
 import { useCustomers, useDeleteCustomer, type Customer } from "@/hooks/use-customers";
@@ -34,13 +35,11 @@ export default function CustomersPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-[32px] font-semibold tracking-tight text-foreground">Customers</h1>
-          <p className="text-sm text-muted-foreground">Profiles, loyalty, and order history</p>
-        </div>
-        <AddCustomerDialog branchId={branchId} />
-      </div>
+      <PageHeader
+        title="Customers"
+        description="Profiles, loyalty, and order history"
+        actions={<AddCustomerDialog branchId={branchId} />}
+      />
 
       <Input
         placeholder="Search by name, phone, or email…"

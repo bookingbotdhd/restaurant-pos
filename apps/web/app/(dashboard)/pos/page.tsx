@@ -266,7 +266,7 @@ function PosPageInner() {
           href="/customer-display"
           target="_blank"
           rel="noreferrer"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-xl border border-border bg-card px-3.5 text-xs font-medium text-muted-foreground shadow-sm transition-colors hover:bg-secondary hover:text-foreground"
           title="Opens the customer-facing screen in a new window — drag it to the second monitor"
         >
           <MonitorSmartphone className="h-3.5 w-3.5" />
@@ -350,7 +350,7 @@ function PosPageInner() {
         <button
           type="button"
           onClick={() => setCartOpen(true)}
-          className="fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-30 flex h-14 items-center justify-between rounded-2xl bg-primary px-4 text-primary-foreground shadow-lg active:scale-[0.98] lg:hidden"
+          className="fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-30 flex h-14 items-center justify-between rounded-full bg-primary px-5 text-primary-foreground shadow-xl ring-1 ring-primary-foreground/20 active:scale-[0.98] lg:hidden"
           style={{ backgroundImage: "var(--gradient-primary)" }}
         >
           <span className="flex items-center gap-2 text-sm font-semibold">

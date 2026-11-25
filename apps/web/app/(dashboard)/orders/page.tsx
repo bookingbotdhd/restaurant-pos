@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock, Trash2, X } from "lucide-react";
+import { ClipboardList, Clock, Trash2, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { ScanOrderInput } from "@/components/orders/scan-order-input";
@@ -22,6 +22,8 @@ import {
 import { formatCurrency } from "@/lib/format";
 import { openEntity } from "@/lib/entity-events";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const TABS: { key: OrderTab; label: string }[] = [
   { key: "pending", label: "New (to accept)" },
@@ -42,10 +44,10 @@ const FILTERS: { key: string; label: string; channel?: OrderChannel; type?: stri
 
 const chip = (on: boolean) =>
   cn(
-    "rounded-full border px-3.5 py-1.5 text-sm transition-colors",
+    "min-h-11 rounded-full border px-4 py-2 text-sm font-medium transition-colors",
     on
-      ? "border-primary bg-primary text-primary-foreground"
-      : "border-border text-muted-foreground hover:bg-secondary",
+      ? "border-primary bg-primary text-primary-foreground shadow-sm"
+      : "border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground",
   );
 
 function timeAgo(iso: string) {
@@ -97,12 +99,17 @@ function OrdersView() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div>
-        <h1 className="text-[32px] font-semibold tracking-tight text-foreground">Orders</h1>
-        <p className="text-sm text-muted-foreground">
-          Accept new online orders and manage everything in progress
-        </p>
-      </div>
+      <PageHeader
+        title="Orders"
+        description="Accept new online orders and manage everything in progress"
+        actions={
+          pendingCount > 0 ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-warning/10 px-3 py-1.5 text-xs font-semibold text-warning ring-1 ring-warning/25 ring-inset">
+              {pendingCount} waiting for a decision
+            </span>
+          ) : undefined
+        }
+      />
 
       <ScanOrderInput branchId={branchId} />
 
@@ -160,14 +167,12 @@ function OrdersView() {
             />
           ))
         ) : (
-          <div className="flex flex-col items-center gap-1 py-16 text-center">
-            <p className="text-sm font-medium text-foreground">
-              {tab === "pending" ? "No orders waiting for you" : "No orders here"}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              New online orders appear here with a sound alert.
-            </p>
-          </div>
+          <EmptyState
+            icon={ClipboardList}
+            title={tab === "pending" ? "No orders waiting for you" : "No orders here"}
+            description="New online orders appear here with a sound alert."
+            className="py-14"
+          />
         )}
       </Card>
 

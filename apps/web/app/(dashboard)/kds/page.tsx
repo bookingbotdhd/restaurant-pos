@@ -8,6 +8,7 @@ import { IncomingOrderCard } from "@/components/kds/incoming-order-card";
 import { LiveStatus } from "@/components/kds/live-status";
 import { TicketCard } from "@/components/kds/ticket-card";
 import { QueryError } from "@/components/ui/query-error";
+import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { hasPermission, useCurrentUser } from "@/hooks/use-auth";
 import { useBranch } from "@/hooks/use-branch";
@@ -46,12 +47,7 @@ export default function KdsPage() {
 
   return (
     <div className="flex min-h-[calc(100dvh-10rem)] flex-col gap-4 lg:h-[calc(100dvh-8rem)]">
-      <div>
-        <h1 className="text-2xl font-semibold sm:text-[32px] tracking-tight text-foreground">
-          Kitchen Display
-        </h1>
-        <p className="text-sm text-muted-foreground">Live order tickets by station</p>
-      </div>
+      <PageHeader title="Kitchen Display" description="Live order tickets by station" />
 
       <LiveStatus />
 

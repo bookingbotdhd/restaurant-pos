@@ -15,6 +15,7 @@ import { UploadImage } from "@/components/ui/upload-image";
 import { Button } from "@/components/ui/button";
 import { ResponsiveTabs } from "@/components/ui/nav-picker";
 import { Card } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -71,12 +72,10 @@ export default function MenuPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-[32px] font-semibold tracking-tight text-foreground">Menu</h1>
-          <p className="text-sm text-muted-foreground">{canManage ? "Categories, items, and pricing" : "Categories, items, and pricing (view only)"}</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Menu"
+        description={canManage ? "Categories, items, and pricing" : "Categories, items, and pricing (view only)"}
+      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[260px_1fr]">
         <Card className="flex flex-col gap-3 p-4">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { QueryError } from "@/components/ui/query-error";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,12 +26,16 @@ export function ProductGrid({
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <Input
-        placeholder="Search menu…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="h-11"
-      />
+      <div className="relative">
+        <Search className="pointer-events-none absolute top-1/2 left-3.5 h-4.5 w-4.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
+        <Input
+          placeholder="Search menu…"
+          aria-label="Search menu"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="h-12 pl-10 text-base"
+        />
+      </div>
 
       {categories && categories.length > 0 && (
         <ResponsiveTabs
@@ -59,7 +64,7 @@ export function ProductGrid({
                 aria-current={active ? "true" : undefined}
                 onClick={() => setActiveCategoryId(c.id)}
                 className={cn(
-                  "flex min-h-10 items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors",
+                  "flex min-h-11 items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-left text-sm transition-colors",
                   active
                     ? "bg-primary font-semibold text-primary-foreground shadow-sm"
                     : "font-medium text-foreground hover:bg-secondary",
@@ -91,20 +96,32 @@ export function ProductGrid({
             type="button"
             title={item.name}
             onClick={() => onSelect(item)}
-            className="flex min-h-24 min-w-0 flex-col items-start gap-2 rounded-2xl border border-border bg-card p-3 text-left sm:p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-[0.97] active:translate-y-0 lg:min-h-32 lg:justify-between lg:p-4 lg:hover:border-primary/50"
+            className="flex min-h-28 min-w-0 flex-col items-start gap-2.5 rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:scale-[0.97] active:translate-y-0 lg:min-h-36 lg:justify-between lg:p-4"
           >
+            {/* Indian veg / non-veg mark: a square outline with a filled dot. */}
             <span
-              className={`h-2.5 w-2.5 rounded-full ${item.isVeg ? "bg-success" : "bg-destructive"}`}
-            />
-            <span className="line-clamp-3 w-full min-w-0 [overflow-wrap:anywhere] text-sm font-medium leading-tight text-foreground lg:text-[15px]">
+              aria-label={item.isVeg ? "Vegetarian" : "Non-vegetarian"}
+              className={cn(
+                "flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-[4px] border-2 bg-card",
+                item.isVeg ? "border-success" : "border-destructive",
+              )}
+            >
+              <span
+                className={cn(
+                  "h-2 w-2 rounded-full",
+                  item.isVeg ? "bg-success" : "bg-destructive",
+                )}
+              />
+            </span>
+            <span className="line-clamp-3 w-full min-w-0 [overflow-wrap:anywhere] text-[15px] leading-snug font-medium text-foreground">
               {item.name}
             </span>
             <span className="flex w-full items-baseline justify-between gap-2">
-              <span className="text-sm font-semibold tabular-nums text-foreground lg:text-base">
+              <span className="text-base font-bold tabular-nums text-foreground">
                 {formatCurrency(item.price)}
               </span>
               {item.halfPrice != null && (
-                <span className="hidden text-[11px] tabular-nums text-muted-foreground lg:inline">
+                <span className="hidden text-xs tabular-nums text-muted-foreground lg:inline">
                   Half {formatCurrency(item.halfPrice)}
                 </span>
               )}

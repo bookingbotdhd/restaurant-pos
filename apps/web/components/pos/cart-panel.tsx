@@ -1,7 +1,8 @@
 "use client";
 
-import { Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Stepper } from "@/components/ui/stepper";
 import {
   Select,
   SelectContent,
@@ -16,6 +17,7 @@ import { SavedAddressPicker } from "@/components/pos/saved-address-picker";
 import type { RestaurantTable } from "@/hooks/use-tables";
 import { formatCurrency } from "@/lib/format";
 import { subtotalOf } from "@/lib/pricing-preview";
+import { ShoppingCart } from "lucide-react";
 
 export type PosOrderType = "DINE_IN" | "TAKEAWAY" | "DELIVERY";
 export interface DeliveryDetails {
@@ -172,7 +174,7 @@ export function CartPanel({
               type="button"
               size="sm"
               variant={b.id === selectedBillId ? "default" : "outline"}
-              className="h-7 px-2 text-xs"
+              className="h-9 px-3 text-xs"
               aria-pressed={b.id === selectedBillId}
               onClick={() => onSelectBill?.(b.id)}
             >
@@ -193,7 +195,7 @@ export function CartPanel({
               type="button"
               variant="outline"
               size="sm"
-              className="h-7 shrink-0 px-2 text-xs"
+              className="h-9 shrink-0 px-3 text-xs"
               onClick={onViewExistingOrder}
             >
               View & pay
@@ -204,50 +206,35 @@ export function CartPanel({
 
       <div className="flex-1 overflow-y-auto">
         {lines.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-muted-foreground">
-            <ShoppingCart className="h-8 w-8 opacity-40" />
-            <p className="text-sm">Cart is empty</p>
-          </div>
+          <EmptyState
+            icon={ShoppingCart}
+            title="Cart is empty"
+            description="Tap a dish on the menu to start this order."
+            className="h-full justify-center py-8"
+          />
         ) : (
           <div className="flex flex-col divide-y divide-border">
             {lines.map((line) => (
-              <div key={line.key} className="flex items-start justify-between gap-3 py-3">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-foreground">{line.name}</p>
+              <div key={line.key} className="flex items-start justify-between gap-3 py-3.5">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[15px] leading-snug font-semibold text-foreground">{line.name}</p>
                   {line.modifierLabel && (
-                    <p className="text-xs text-muted-foreground">{line.modifierLabel}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{line.modifierLabel}</p>
                   )}
-                  <p className="mt-1 text-sm font-medium tabular-nums text-foreground">
+                  <p className="mt-1.5 text-sm font-semibold tabular-nums text-foreground">
                     {formatCurrency(line.unitPrice * line.quantity)}
+                    <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                      {formatCurrency(line.unitPrice)} each
+                    </span>
                   </p>
                 </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => onDecrement(line.key)}
-                  >
-                    <Minus className="h-3 w-3" />
-                  </Button>
-                  <span className="w-5 text-center text-sm tabular-nums">{line.quantity}</span>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => onIncrement(line.key)}
-                  >
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                    onClick={() => onRemove(line.key)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
+                <Stepper
+                  value={line.quantity}
+                  onIncrement={() => onIncrement(line.key)}
+                  onDecrement={() => onDecrement(line.key)}
+                  onRemove={() => onRemove(line.key)}
+                  ariaLabel={line.name}
+                />
               </div>
             ))}
           </div>
@@ -255,13 +242,13 @@ export function CartPanel({
       </div>
 
       <div className="flex flex-col gap-3 border-t border-border pt-4">
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">Subtotal (incl. tax)</span>
-          <span className="font-semibold tabular-nums text-foreground">
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">Subtotal (incl. tax)</span>
+          <span className="text-lg font-bold tabular-nums text-foreground">
             {formatCurrency(subtotal)}
           </span>
         </div>
-        <Button className="h-11" disabled={!canSubmit} onClick={onSubmit}>
+        <Button size="lg" className="w-full" disabled={!canSubmit} onClick={onSubmit}>
           {isSubmitting
             ? "Sending to kitchen…"
             : existingOrderNumber
