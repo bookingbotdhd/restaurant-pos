@@ -5,6 +5,10 @@ export const createStaffSchema = z.object({
   email: z.string().email().optional(),
   phone: z.string().optional(),
   password: z.string().min(8),
+  // Quick-login / manager-approval PIN (4-8 digits), stored only as a
+  // bcrypt hash. Until a manager has one set, no manager-PIN approval is
+  // possible for them — the gate fails closed.
+  pin: z.string().regex(/^\d{4,8}$/, "PIN must be 4-8 digits").optional(),
   roleId: z.string().min(1),
   branchIds: z.array(z.string()).min(1),
   departmentId: z.string().min(1).nullable().optional(),
@@ -19,6 +23,9 @@ export const updateStaffSchema = z.object({
   isActive: z.boolean().optional(),
   branchIds: z.array(z.string()).optional(),
   password: z.string().min(8).optional(),
+  // Set (or replace) the PIN. There is no way to clear a PIN through the
+  // API — a manager who loses theirs gets a new one set here.
+  pin: z.string().regex(/^\d{4,8}$/, "PIN must be 4-8 digits").optional(),
   departmentId: z.string().min(1).nullable().optional(),
 });
 export type UpdateStaffDto = z.infer<typeof updateStaffSchema>;

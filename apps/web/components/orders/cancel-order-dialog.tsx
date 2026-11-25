@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ManagerPinDialog } from "@/components/auth/manager-pin-dialog";
 import { hasPermission, useCurrentUser } from "@/hooks/use-auth";
 import { useCancelOrder } from "@/hooks/use-orders";
 import { ApiError } from "@/lib/api";
@@ -41,9 +42,12 @@ export function CancelOrderDialog({
   const [startedWarning, setStartedWarning] = useState<string | null>(null);
   const cancel = useCancelOrder(branchId);
   const [error, setError] = useState<string | null>(null);
+  // Manager-PIN approval for this void. Asked for before the cancel runs
+  // and carried on the request; the server re-checks it.
+  const [pinOpen, setPinOpen] = useState(false);
+  const [approval, setApproval] = useState<{ token: string; managerName: string } | null>(null);
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const doCancel = (managerApprovalToken: string) => {
     setError(null);
     cancel.mutate(
       {
@@ -51,12 +55,14 @@ export function CancelOrderDialog({
         reason: reason.trim(),
         source: byGuest ? "CUSTOMER" : "STAFF",
         confirmStarted: startedWarning ? true : undefined,
+        managerApprovalToken,
       },
       {
         onSuccess: () => {
           setReason("");
           setByGuest(false);
           setStartedWarning(null);
+          setApproval(null);
           onOpenChange(false);
           onCancelled?.();
         },
@@ -65,19 +71,37 @@ export function CancelOrderDialog({
             setStartedWarning(err.message);
             return;
           }
+          // A refused approval (expired, or the approver lost the role)
+          // must not be retried silently — drop it so the next press asks
+          // for a fresh PIN instead of failing with the same token.
+          if (err instanceof ApiError && err.status === 403) setApproval(null);
           setError(err instanceof ApiError ? err.message : "Could not cancel the order. Try again.");
         },
       },
     );
   };
 
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // A void needs a manager at the till: collect the PIN first, then run
+    // the cancel with the approval it returns. An approval already held
+    // (e.g. after the kitchen-started warning) is reused for the retry.
+    if (!approval) {
+      setPinOpen(true);
+      return;
+    }
+    doCancel(approval.token);
+  };
+
   return (
+    <>
     <Dialog
       open={open}
       onOpenChange={(next) => {
         if (!next) {
           setError(null);
           setStartedWarning(null);
+          setApproval(null);
         }
         onOpenChange(next);
       }}
@@ -124,6 +148,11 @@ export function CancelOrderDialog({
               {startedWarning}
             </p>
           )}
+          {approval && (
+            <p role="status" className="rounded-lg bg-success/10 px-3 py-2 text-sm text-success">
+              Approved by {approval.managerName} — manager PIN checked.
+            </p>
+          )}
           {error && (
             <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {error}
@@ -145,6 +174,17 @@ export function CancelOrderDialog({
         </form>
       </DialogContent>
     </Dialog>
+    <ManagerPinDialog
+      open={pinOpen}
+      onOpenChange={setPinOpen}
+      actionLabel="Void this order"
+      description={`Voiding order #${orderNumber} needs a manager. Ask a manager to enter their PIN — your session stays signed in.`}
+      onApproved={(token, managerName) => {
+        setApproval({ token, managerName });
+        doCancel(token);
+      }}
+    />
+    </>
   );
 }
 

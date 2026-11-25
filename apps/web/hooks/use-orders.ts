@@ -319,12 +319,21 @@ export function useCancelOrder(branchId: string | null) {
       reason,
       source,
       confirmStarted,
+      managerApprovalToken,
     }: {
       orderId: string;
       reason: string;
       source?: "STAFF" | "CUSTOMER";
       confirmStarted?: boolean;
-    }) => api.post<CreatedOrder>(`/orders/${orderId}/cancel?branchId=${branchId}`, { reason, source, confirmStarted }),
+      // Manager-PIN approval token — the server refuses the void without it.
+      managerApprovalToken?: string;
+    }) =>
+      api.post<CreatedOrder>(`/orders/${orderId}/cancel?branchId=${branchId}`, {
+        reason,
+        source,
+        confirmStarted,
+        managerApprovalToken,
+      }),
     onSuccess: () => invalidateBillViews(queryClient, branchId),
   });
 }

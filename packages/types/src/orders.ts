@@ -184,6 +184,10 @@ export const checkoutSchema = z.object({
   // One per checkout attempt; a repeat of the same key is answered with the
   // original result instead of charging again.
   requestId: z.string().min(8).max(64).optional(),
+  // Short-lived manager-PIN approval token (POST /auth/verify-manager-pin).
+  // Required by the server whenever this checkout carries a manual discount
+  // or coupon — the approval is re-checked there, never trusted from the UI.
+  managerApprovalToken: z.string().min(1).max(2048).optional(),
 });
 export type CheckoutDto = z.infer<typeof checkoutSchema>;
 
@@ -251,6 +255,10 @@ export const cancelOrderSchema = z.object({
   confirmStarted: z.boolean().optional(),
   // Who asked for it: staff by default, or the guest changing their mind.
   source: z.enum(["STAFF", "CUSTOMER"]).optional(),
+  // Short-lived manager-PIN approval token (POST /auth/verify-manager-pin).
+  // Required by the server for every cancel — a void is a manager decision,
+  // not a cashier one. Re-checked server-side, never trusted from the UI.
+  managerApprovalToken: z.string().min(1).max(2048).optional(),
 });
 export type CancelOrderDto = z.infer<typeof cancelOrderSchema>;
 
