@@ -1350,6 +1350,11 @@ enum OrderType {
 
 enum OrderStatus {
   OPEN
+  // Parked by staff from the POS: not billable/payable and off the table
+  // and the kitchen screen until resumed (back to OPEN). Its kitchen
+  // tickets are kept, not cancelled, so resuming restores them as they
+  // were. BILLED is legacy — nothing sets it; checkout goes OPEN -> PAID.
+  ON_HOLD
   BILLED
   PAID
   CANCELLED
@@ -1438,6 +1443,11 @@ model Order {
   cancelledAt   DateTime?
   cancelledById String?
   cancelSource  CancelSource?
+
+  // Hold / resume (OrderStatus ON_HOLD): when the order was parked and by
+  // whom. Cleared on resume; kept null for orders never held.
+  heldAt   DateTime?
+  heldById String?
 
   // Who accepted an incoming order and when (acceptance gate only).
   acceptedAt   DateTime?

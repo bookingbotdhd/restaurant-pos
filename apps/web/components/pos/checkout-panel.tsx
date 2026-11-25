@@ -1,7 +1,7 @@
 "use client";
 
 import { kitchenProgress, type PaymentMethodDto } from "@restroos/types";
-import { ArrowLeft, CheckCircle2, ChefHat, Pencil, Printer } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ChefHat, Pause, Pencil, Play, Printer } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { StatusNote, useNoteToast } from "@/components/ui/status-note";
@@ -20,7 +20,9 @@ import { hasPermission, useCurrentUser } from "@/hooks/use-auth";
 import {
   useBillPreview,
   useCheckoutOrder,
+  useHoldOrder,
   useOrder,
+  useResumeOrder,
   type BillPreview,
   type CheckoutResult,
   type CreatedOrder,
@@ -100,6 +102,8 @@ export function CheckoutPanel({
   const [couponInput, setCouponInput] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState("");
   const checkout = useCheckoutOrder(branchId);
+  const hold = useHoldOrder(branchId);
+  const resume = useResumeOrder(branchId);
   const { note, clear: clearNote, toast } = useNoteToast();
   const canCancelRole = useCanCancelOrders();
   const { data: me } = useCurrentUser();
@@ -286,6 +290,18 @@ export function CheckoutPanel({
     );
   };
 
+  // Park the bill: the table is freed and the order waits in the held list
+  // until resumed. Items, totals and any part-payment are kept as they were.
+  const handleHold = () => {
+    hold.mutate(order.id, {
+      onSuccess: () => {
+        toast.success(`Order #${order.orderNumber} held — its table is free again`);
+        onDone();
+      },
+      onError: (err) => toast.error(err instanceof Error ? err.message : "Could not hold order"),
+    });
+  };
+
   const printBill = () => branchId && openReceiptPrint(order.id, branchId, locked ? {} : settled);
   const printBillThermal = () =>
     printUsb.mutate(
@@ -365,6 +381,42 @@ export function CheckoutPanel({
     );
   }
 
+  // Held from this or another terminal: nothing can be billed or paid until
+  // it is resumed. Resuming re-opens the bill (the live order refetches to
+  // OPEN and this panel returns to the checkout view).
+  if (order.status === "ON_HOLD") {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+        <StatusNote note={note} onClear={clearNote} className="w-full text-left" />
+        <p className="text-sm font-medium text-foreground">Order #{order.orderNumber} is on hold</p>
+        <p className="text-xs text-muted-foreground">
+          Its table is free again and the kitchen tickets are parked. Resume it to keep serving or bill it.
+        </p>
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+          {canEditRole && (
+            <Button
+              className="h-11"
+              disabled={resume.isPending}
+              onClick={() =>
+                resume.mutate(order.id, {
+                  onSuccess: () => toast.success(`Order #${order.orderNumber} resumed`),
+                  onError: (err) =>
+                    toast.error(err instanceof Error ? err.message : "Could not resume order"),
+                })
+              }
+            >
+              <Play className="h-4 w-4" />
+              {resume.isPending ? "Resuming…" : "Resume order"}
+            </Button>
+          )}
+          <Button variant="outline" className="h-11" onClick={onDone}>
+            Done
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   const kitchen = live ? kitchenProgress(live.kots.map((k) => k.status)) : null;
   const paidSoFar = live?.payments ?? [];
   const partialLabel = `Record partial payment · ${formatCurrency(plan.applied)}`;
@@ -399,6 +451,12 @@ export function CheckoutPanel({
               onClick={() => setCancelOpen(true)}
             >
               Cancel order
+            </Button>
+          )}
+          {canEditRole && (
+            <Button type="button" variant="outline" size="sm" disabled={hold.isPending} onClick={handleHold}>
+              <Pause className="h-4 w-4" />
+              {hold.isPending ? "Holding…" : "Hold order"}
             </Button>
           )}
         </div>

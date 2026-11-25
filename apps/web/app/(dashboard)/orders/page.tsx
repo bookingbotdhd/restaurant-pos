@@ -265,6 +265,9 @@ function OrderRow({
             <Badge className="font-normal">Needs action</Badge>
           )}
           {rejected && <Badge variant="secondary" className="font-normal">Rejected</Badge>}
+          {!rejected && order.status === "ON_HOLD" && (
+            <Badge variant="secondary" className="font-normal">On hold</Badge>
+          )}
           {!rejected && order.status === "CANCELLED" && (
             <Badge variant="secondary" className="font-normal">Cancelled</Badge>
           )}

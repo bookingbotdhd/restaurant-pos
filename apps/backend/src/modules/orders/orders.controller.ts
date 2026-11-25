@@ -230,6 +230,18 @@ export class OrdersController {
     });
   }
 
+  // Parked orders for the POS held-orders list. Declared before ':id' so
+  // 'held' is not read as an order id (same as 'manage' above).
+  @Auth('orders.create')
+  @Get('held')
+  async listHeld(
+    @CurrentUser() user: SessionUser,
+    @Query('branchId') branchId: string,
+  ) {
+    await this.branchAccess.assertAccess(user.restaurantId, branchId);
+    return this.ordersService.listHeld(branchId);
+  }
+
   @Auth('orders.create')
   @Get(':id')
   async getOrder(
@@ -290,6 +302,28 @@ export class OrdersController {
     await this.branchAccess.assertAccess(user.restaurantId, branchId);
     const { reason } = body as { reason: string };
     return this.ordersService.rejectOrder(branchId, id, user.id, reason);
+  }
+
+  @Auth('orders.edit')
+  @Post(':id/hold')
+  async hold(
+    @CurrentUser() user: SessionUser,
+    @Query('branchId') branchId: string,
+    @Param('id') id: string,
+  ) {
+    await this.branchAccess.assertAccess(user.restaurantId, branchId);
+    return this.ordersService.holdOrder(branchId, id, user.id);
+  }
+
+  @Auth('orders.edit')
+  @Post(':id/resume')
+  async resume(
+    @CurrentUser() user: SessionUser,
+    @Query('branchId') branchId: string,
+    @Param('id') id: string,
+  ) {
+    await this.branchAccess.assertAccess(user.restaurantId, branchId);
+    return this.ordersService.resumeOrder(branchId, id, user.id);
   }
 
   @Auth('orders.cancel')

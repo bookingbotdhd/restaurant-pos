@@ -48,7 +48,9 @@ export function OrderDetailDialog({
   const [editOpen, setEditOpen] = useState(false);
   const customerName = order?.guestName ?? order?.customer?.name ?? "Walk-in guest";
   const pending = order?.status === "OPEN" && order?.acceptance === "PENDING";
-  const canCancel = order?.status === "OPEN" && !pending;
+  // A held order can be cancelled without resuming it first (the server
+  // allows cancel from OPEN or ON_HOLD); editing it still needs a resume.
+  const canCancel = (order?.status === "OPEN" || order?.status === "ON_HOLD") && !pending;
   const run = (fn: () => Promise<unknown>, done: string) =>
     fn().then(
       () => {
@@ -86,7 +88,13 @@ export function OrderDetailDialog({
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <TypeBadge type={order.type} />
               <Badge variant="secondary" className="font-normal">
-                {pending ? "Awaiting acceptance" : order.acceptance === "REJECTED" ? "Rejected" : order.status}
+                {pending
+                  ? "Awaiting acceptance"
+                  : order.acceptance === "REJECTED"
+                    ? "Rejected"
+                    : order.status === "ON_HOLD"
+                      ? "On hold"
+                      : order.status}
               </Badge>
               {order.table && (
                 <span>Table {order.table.name ?? order.table.number}</span>
@@ -200,9 +208,15 @@ export function OrderDetailDialog({
                 This bill is paid. To correct it, issue a refund from the Dashboard — paid bills are never edited in place.
               </p>
             )}
+            {order.status === "ON_HOLD" && (
+              <p className="rounded-lg bg-secondary/40 px-3 py-2 text-xs text-muted-foreground">
+                This order is on hold — its table is free and the kitchen tickets are parked. Resume it from the
+                POS held list to keep serving or bill it, or cancel it here.
+              </p>
+            )}
             {canCancel && (
               <div className="flex gap-2">
-                {canEditRole && (
+                {canEditRole && order.status === "OPEN" && (
                   <Button variant="outline" className="flex-1" onClick={() => setEditOpen(true)}>
                     <Pencil className="mr-1.5 h-4 w-4" /> Edit bill
                   </Button>
