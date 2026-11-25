@@ -3,6 +3,7 @@
 import { Trash2 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { DepartmentsCard } from "@/components/settings/departments-card";
+import { SetStaffPinDialog, isManagerRole } from "@/components/settings/set-staff-pin-dialog";
 import { StaffAccessDialog } from "@/components/settings/staff-access-dialog";
 import { AddStaffDialog } from "@/components/settings/add-staff-dialog";
 import { SettingsTabs } from "@/components/settings/settings-tabs";
@@ -137,29 +138,32 @@ export default function StaffPage() {
                     />
                   </TableCell>
                   <TableCell>
-                    {member.id !== currentUser?.user.id && (
-                      <div className="flex items-center justify-end gap-1">
-                        {canEditAccess && <StaffAccessDialog member={member} />}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 px-2 text-xs text-muted-foreground"
-                          title="Reset two-factor authentication (lost device)"
-                          onClick={() => onResetTwoFactor(member)}
-                        >
-                          Reset 2FA
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          title="Delete staff account"
-                          onClick={() => onDelete(member)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    )}
+                    <div className="flex items-center justify-end gap-1">
+                      {isManagerRole(member) && <SetStaffPinDialog member={member} />}
+                      {member.id !== currentUser?.user.id && (
+                        <>
+                          {canEditAccess && <StaffAccessDialog member={member} />}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-xs text-muted-foreground"
+                            title="Reset two-factor authentication (lost device)"
+                            onClick={() => onResetTwoFactor(member)}
+                          >
+                            Reset 2FA
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            title="Delete staff account"
+                            onClick={() => onDelete(member)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

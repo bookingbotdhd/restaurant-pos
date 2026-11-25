@@ -76,6 +76,7 @@ export class UsersService {
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
+    const pinHash = dto.pin ? await bcrypt.hash(dto.pin, 10) : undefined;
     const user = await this.prisma.user.create({
       data: {
         restaurantId,
@@ -85,6 +86,7 @@ export class UsersService {
         roleId: dto.roleId,
         departmentId: dto.departmentId ?? undefined,
         passwordHash,
+        pinHash,
         branches: {
           create: dto.branchIds.map((branchId) => ({ branchId })),
         },
@@ -147,6 +149,10 @@ export class UsersService {
     const passwordHash = dto.password
       ? await bcrypt.hash(dto.password, 12)
       : undefined;
+    // A PIN is a short secret like the pin-login one (bcrypt cost 10 there
+    // too): setting it here is the only way a manager ever gets one, and
+    // without one the manager-PIN gate fails closed for them.
+    const pinHash = dto.pin ? await bcrypt.hash(dto.pin, 10) : undefined;
 
     const updated = await this.prisma.user.update({
       where: { id },
@@ -158,6 +164,7 @@ export class UsersService {
         departmentId: dto.departmentId,
         isActive: dto.isActive,
         passwordHash,
+        pinHash,
         ...(dto.branchIds
           ? {
               branches: {
@@ -187,6 +194,7 @@ export class UsersService {
         isActive: dto.isActive,
         branchIds: dto.branchIds,
         passwordChanged: Boolean(dto.password),
+        pinChanged: Boolean(dto.pin),
       },
     });
 

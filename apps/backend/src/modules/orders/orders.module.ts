@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuditModule } from '../../audit/audit.module';
+import { AuthModule } from '../../auth/auth.module';
 import { BranchAccessService } from '../../common/services/branch-access.service';
 import { NotificationsModule } from '../../notifications/notifications.module';
 import { GiftCardsModule } from '../gift-cards/gift-cards.module';
@@ -17,6 +18,7 @@ import { ScheduledOrdersService } from './scheduled-orders.service';
     GiftCardsModule,
     InventoryModule,
     AuditModule,
+    AuthModule,
     NotificationsModule,
     MarketingModule,
     VerifactuModule,

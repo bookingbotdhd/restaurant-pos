@@ -32,6 +32,7 @@ export function AddStaffDialog() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [pin, setPin] = useState("");
   const [roleId, setRoleId] = useState("");
   const [departmentId, setDepartmentId] = useState("");
   const { branches } = useBranch();
@@ -46,6 +47,7 @@ export function AddStaffDialog() {
     setEmail("");
     setPhone("");
     setPassword("");
+    setPin("");
     setRoleId("");
     setDepartmentId("");
     setBranchIds([]);
@@ -71,6 +73,7 @@ export function AddStaffDialog() {
         email: email || undefined,
         phone: phone || undefined,
         password,
+        pin: pin || undefined,
         roleId,
         branchIds,
         departmentId: departmentId || undefined,
@@ -122,6 +125,25 @@ export function AddStaffDialog() {
               minLength={8}
               required
             />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="s-pin">PIN (optional)</Label>
+            <Input
+              id="s-pin"
+              type="password"
+              inputMode="numeric"
+              autoComplete="off"
+              value={pin}
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))}
+              minLength={4}
+              maxLength={8}
+              placeholder="4–8 digits"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Quick-login PIN, and the PIN this person uses to approve discounts and
+              voids if their role is a manager one. Only the hash is stored.
+            </p>
           </div>
 
           <div className="flex flex-col gap-2">

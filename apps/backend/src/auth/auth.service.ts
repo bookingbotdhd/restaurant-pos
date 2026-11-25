@@ -9,14 +9,18 @@ import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '@prisma/client';
 import {
   DEFAULT_ROLE_PERMISSIONS,
+  MANAGER_ROLES,
   PERMISSIONS,
   STAFF_ROLES,
   type LoginDto,
+  type ManagerPinApproval,
   type PinLoginDto,
   type RegisterDto,
   type SessionUser,
+  type VerifyManagerPinDto,
 } from '@restroos/types';
 import * as bcrypt from 'bcrypt';
+import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TwoFactorService } from './two-factor.service';
 import {
@@ -31,6 +35,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly twoFactor: TwoFactorService,
+    private readonly audit: AuditService,
   ) {}
 
   private toSessionUser(user: {
@@ -278,6 +283,142 @@ export class AuthService {
     }
 
     return this.issueSession(user);
+  }
+
+  /**
+   * Manager-PIN approval for one gated till action (a discount, a void).
+   * Deliberately NOT pinLogin: it must not sign anyone in, switch the
+   * session, or set a cookie — the cashier stays signed in and the manager
+   * just proves they were at the till. The answer is a 5-minute approval
+   * token; the gated endpoint re-checks it (verifyManagerApproval) before
+   * acting, so a stolen or replayed token from another restaurant, or one
+   * minted for a manager who has since lost the role, is refused.
+   *
+   * The PIN is matched against every active manager in this restaurant
+   * (OWNER / ADMINISTRATOR / RESTAURANT_MANAGER with a PIN set), so the
+   * cashier never picks which manager approves — whoever types their PIN
+   * is the approver, and their name lands in the audit trail. A wrong PIN
+   * gives the same message whether no manager has a PIN at all or the
+   * digits were wrong, so the response never reveals which managers have
+   * PINs set.
+   */
+  async verifyManagerPin(
+    restaurantId: string,
+    dto: VerifyManagerPinDto,
+  ): Promise<ManagerPinApproval> {
+    const managers = await this.prisma.user.findMany({
+      where: {
+        restaurantId,
+        isActive: true,
+        pinHash: { not: null },
+        twoFactorEnabled: false,
+        role: { name: { in: [...MANAGER_ROLES] } },
+      },
+      include: { role: true },
+    });
+
+    let manager: (typeof managers)[number] | null = null;
+    for (const candidate of managers) {
+      if (
+        candidate.pinHash &&
+        (await bcrypt.compare(dto.pin, candidate.pinHash))
+      ) {
+        manager = candidate;
+        break;
+      }
+    }
+
+    if (!manager) {
+      // Spend comparable time when nothing matched, so timing does not
+      // reveal whether any manager has a PIN set.
+      await bcrypt.compare(
+        dto.pin,
+        '$2b$10$invalidinvalidinvalidinvalidinvalidinvalidinvalidinvalidi',
+      );
+      throw new UnauthorizedException(
+        'Incorrect manager PIN — ask a manager to enter their PIN',
+      );
+    }
+
+    const approvalToken = await this.jwt.signAsync(
+      {
+        sub: manager.id,
+        purpose: 'manager-pin-approval',
+        restaurantId,
+        roleName: manager.role.name,
+      },
+      { expiresIn: '5m' },
+    );
+
+    await this.audit.record({
+      userId: manager.id,
+      action: 'manager.pin.verified',
+      entity: 'User',
+      entityId: manager.id,
+      metadata: { roleName: manager.role.name },
+    });
+
+    return {
+      approvalToken,
+      manager: {
+        id: manager.id,
+        name: manager.name,
+        roleName: manager.role.name,
+      },
+      expiresInSeconds: 300,
+    };
+  }
+
+  /**
+   * Re-checks a manager-PIN approval token at the gated endpoint. Throws
+   * ForbiddenException (never returns null) so call sites read as a single
+   * `await` with no "did we check?" branch to forget.
+   */
+  async verifyManagerApproval(
+    token: string | undefined,
+    restaurantId: string,
+  ): Promise<{ id: string; name: string; roleName: string }> {
+    if (!token) {
+      throw new ForbiddenException(
+        'Manager approval required — ask a manager to enter their PIN',
+      );
+    }
+    let payload: unknown;
+    try {
+      payload = await this.jwt.verifyAsync(token);
+    } catch {
+      throw new ForbiddenException(
+        'Manager approval is invalid or expired — ask a manager to enter their PIN again',
+      );
+    }
+    const p = payload as {
+      sub?: string;
+      purpose?: string;
+      restaurantId?: string;
+    };
+    if (p.purpose !== 'manager-pin-approval' || p.restaurantId !== restaurantId || !p.sub) {
+      throw new ForbiddenException(
+        'Manager approval is invalid or expired — ask a manager to enter their PIN again',
+      );
+    }
+    const manager = await this.prisma.user.findUnique({
+      where: { id: p.sub },
+      include: { role: true },
+    });
+    // The approver must still be an active manager in this restaurant —
+    // a token minted before a role change or a 2FA switch must not survive it.
+    if (
+      !manager ||
+      !manager.isActive ||
+      manager.restaurantId !== restaurantId ||
+      manager.twoFactorEnabled ||
+      !(MANAGER_ROLES as readonly string[]).includes(manager.role.name)
+    ) {
+      throw new ForbiddenException(
+        'Manager approval is invalid or expired — ask a manager to enter their PIN again',
+      );
+    }
+    return { id: manager.id, name: manager.name, roleName: manager.role.name };
   }
 
   private async issueSession(

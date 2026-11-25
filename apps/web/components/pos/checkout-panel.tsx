@@ -15,6 +15,7 @@ import { CustomerPicker } from "@/components/pos/customer-picker";
 import type { Customer } from "@/hooks/use-customers";
 import { lookupGiftCard } from "@/hooks/use-gift-cards";
 import { CancelOrderDialog, useCanCancelOrders } from "@/components/orders/cancel-order-dialog";
+import { ManagerPinDialog } from "@/components/auth/manager-pin-dialog";
 import { EditBillDialog } from "@/components/orders/edit-bill-dialog";
 import { hasPermission, useCurrentUser } from "@/hooks/use-auth";
 import {
@@ -111,6 +112,15 @@ export function CheckoutPanel({
   const canDiscount = hasPermission(me?.user, "discounts.apply");
   const [cancelOpen, setCancelOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  // Manager-PIN approval for a discounted checkout. Held only for the exact
+  // discount it was given for: change the discount and it is dropped, so a
+  // bigger discount cannot ride on an approval meant for a smaller one.
+  const [pinOpen, setPinOpen] = useState(false);
+  const [approval, setApproval] = useState<{
+    token: string;
+    managerName: string;
+    discountKey: string;
+  } | null>(null);
   const phone = canPrintOnDevice();
   const printUsb = usePrintOrderUsb(branchId);
   const printKot = usePrintKot(branchId);
@@ -157,6 +167,23 @@ export function CheckoutPanel({
     [discountMode, discountValue, tipAmount, pointsToRedeem, appliedCoupon],
   );
   const settled = useDebounced(adjustments);
+  // `settled` is a percent-or-flat union, so narrow before reading it.
+  const settledDiscountPercent = "discountPercent" in settled ? settled.discountPercent : 0;
+  const settledDiscountFlat = "discountFlat" in settled ? settled.discountFlat : 0;
+  // What a discount approval covers: percent, flat amount and coupon, as
+  // one key. Change any of them and the held approval no longer matches,
+  // so the next checkout asks for a fresh PIN.
+  const discountKey = useMemo(
+    () =>
+      JSON.stringify({
+        p: settledDiscountPercent,
+        f: settledDiscountFlat,
+        c: settled.couponCode ?? "",
+      }),
+    [settledDiscountPercent, settledDiscountFlat, settled.couponCode],
+  );
+  const hasDiscount =
+    settledDiscountPercent > 0 || settledDiscountFlat > 0 || !!settled.couponCode;
   // Once any payment is on the bill the server fixes its figures and refuses
   // further adjustments, so none are sent from then on.
   const hasPayments = (live?.payments.length ?? 0) > 0;
@@ -245,7 +272,7 @@ export function CheckoutPanel({
     return attempt.current.id;
   };
 
-  const handleCheckout = () => {
+  const runCheckout = (managerApprovalToken?: string) => {
     if (!bill || repricing) return;
     const payments =
       plan.applied > 0
@@ -266,12 +293,14 @@ export function CheckoutPanel({
       giftCardCode: giftCardBalance !== null ? giftCardCode : undefined,
       payments,
       allowPartial: plan.partial || undefined,
+      ...(managerApprovalToken ? { managerApprovalToken } : {}),
     };
     checkout.mutate(
       { orderId: order.id, dto: { ...dto, requestId: requestIdFor(dto) } },
       {
         onSuccess: (result) => {
           attempt.current = null;
+          setApproval(null);
           setAmountText("");
           if (result.settlement.fullyPaid) {
             setCompleted(result);
@@ -284,8 +313,13 @@ export function CheckoutPanel({
             );
           }
         },
-        onError: (err) =>
-          toast.error(err instanceof ApiError ? err.message : "Checkout failed"),
+        onError: (err) => {
+          // A refused approval (expired, or the approver lost the role)
+          // must not be retried silently — drop it so the next press asks
+          // for a fresh PIN instead of failing with the same token.
+          if (err instanceof ApiError && err.status === 403) setApproval(null);
+          toast.error(err instanceof ApiError ? err.message : "Checkout failed");
+        },
       },
     );
   };
@@ -300,6 +334,19 @@ export function CheckoutPanel({
       },
       onError: (err) => toast.error(err instanceof Error ? err.message : "Could not hold order"),
     });
+  };
+
+  const handleCheckout = () => {
+    if (!bill || repricing) return;
+    // A manual discount or coupon needs a manager at the till first: ask
+    // for the PIN and only then run the checkout with the approval it
+    // returns. A plain checkout (or a locked bill, whose figures are
+    // already fixed) never asks. The server re-checks the approval.
+    if (!locked && hasDiscount && (!approval || approval.discountKey !== discountKey)) {
+      setPinOpen(true);
+      return;
+    }
+    runCheckout(approval?.discountKey === discountKey ? approval.token : undefined);
   };
 
   const printBill = () => branchId && openReceiptPrint(order.id, branchId, locked ? {} : settled);
@@ -467,6 +514,16 @@ export function CheckoutPanel({
           open={cancelOpen}
           onOpenChange={setCancelOpen}
         />
+        <ManagerPinDialog
+          open={pinOpen}
+          onOpenChange={setPinOpen}
+          actionLabel="Approve discount"
+          description="This bill has a discount or coupon, so a manager needs to approve it. Ask a manager to enter their PIN — your session stays signed in."
+          onApproved={(token, managerName) => {
+            setApproval({ token, managerName, discountKey });
+            runCheckout(token);
+          }}
+        />
         <EditBillDialog branchId={branchId} orderId={order.id} open={editOpen} onOpenChange={setEditOpen} />
       </div>
 
@@ -594,6 +651,11 @@ export function CheckoutPanel({
               value={discountReason}
               onChange={(e) => setDiscountReason(e.target.value)}
             />
+          )}
+          {approval && approval.discountKey === discountKey && !locked && hasDiscount && (
+            <p role="status" className="rounded-lg bg-success/10 px-3 py-2 text-xs text-success">
+              Discount approved by {approval.managerName} — manager PIN checked.
+            </p>
           )}
         </div>
         <div className="flex flex-col gap-2">

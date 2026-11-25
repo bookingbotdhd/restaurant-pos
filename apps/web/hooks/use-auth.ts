@@ -1,7 +1,7 @@
 "use client";
 
 import { clearOfflineCache } from "@/lib/offline-cache";
-import { permissionSatisfied, type LoginDto, type RegisterDto, type SessionUser } from "@restroos/types";
+import { permissionSatisfied, type LoginDto, type ManagerPinApproval, type RegisterDto, type SessionUser, type VerifyManagerPinDto } from "@restroos/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { savedPushToken, savePushToken } from "@/lib/native";
 import { api } from "@/lib/api";
@@ -58,4 +58,17 @@ export function useLogout() {
 
 export function hasPermission(user: SessionUser | undefined, permission: string): boolean {
   return user ? permissionSatisfied(user.permissions, permission) : false;
+}
+
+/**
+ * Manager-PIN approval for one gated till action (discount, void). Verifies
+ * the PIN only — it signs nobody in and leaves the cashier's session alone.
+ * The answer is a 5-minute approval token to carry on the gated request;
+ * the server re-checks it before acting.
+ */
+export function useVerifyManagerPin() {
+  return useMutation({
+    mutationFn: (dto: VerifyManagerPinDto) =>
+      api.post<ManagerPinApproval>("/auth/verify-manager-pin", dto),
+  });
 }

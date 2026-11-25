@@ -81,6 +81,18 @@ export const STAFF_ROLES = [
 
 export type StaffRole = (typeof STAFF_ROLES)[number];
 
+// Roles whose PIN can approve a manager-gated action (discounts, voids).
+// OWNER and ADMINISTRATOR hold every permission anyway; RESTAURANT_MANAGER
+// is the working manager on the floor. Checked by
+// AuthService.verifyManagerPin — never hardcode this list elsewhere.
+export const MANAGER_ROLES = [
+  "OWNER",
+  "ADMINISTRATOR",
+  "RESTAURANT_MANAGER",
+] as const;
+
+export type ManagerRole = (typeof MANAGER_ROLES)[number];
+
 // Default permission bundles per role — seeded on first boot, but every
 // permission remains individually toggleable afterward (stored per-role in
 // the DB, this is just the initial grant set).

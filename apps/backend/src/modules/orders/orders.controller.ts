@@ -34,6 +34,7 @@ import {
   type SessionUser,
 } from '@restroos/types';
 import { Auth } from '../../common/decorators/auth.decorator';
+import { AuthService } from '../../auth/auth.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { BranchAccessService } from '../../common/services/branch-access.service';
@@ -200,7 +201,20 @@ export class OrdersController {
     private readonly branchAccess: BranchAccessService,
     private readonly kotPrint: KotPrintService,
     private readonly verifactu: VerifactuService,
+    private readonly authService: AuthService,
   ) {}
+
+  // Manager-PIN gate, enforced server-side: the frontend prompt is only
+  // the collection step. verifyManagerApproval throws ForbiddenException
+  // when the token is missing, expired, from another restaurant, or the
+  // approver is no longer an active manager — so a forged or stale token
+  // in the request body buys nothing.
+  private async requireManagerApproval(
+    user: SessionUser,
+    token: string | undefined,
+  ) {
+    await this.authService.verifyManagerApproval(token, user.restaurantId);
+  }
 
   @Auth('orders.create')
   @Get()
@@ -335,9 +349,12 @@ export class OrdersController {
     @Body() body?: unknown,
   ) {
     await this.branchAccess.assertAccess(user.restaurantId, branchId);
-    const { reason, confirmStarted, source } = cancelOrderSchema
-      .partial()
-      .parse(body ?? {});
+    const { reason, confirmStarted, source, managerApprovalToken } =
+      cancelOrderSchema.partial().parse(body ?? {});
+    // A void is a manager decision: the PIN approval is required even for
+    // roles that hold orders.cancel (RESTAURANT_MANAGER included), and the
+    // token is re-checked server-side.
+    await this.requireManagerApproval(user, managerApprovalToken);
     return this.ordersService.cancelOrder(branchId, id, user.id, reason, {
       confirmStarted,
       source,
@@ -468,6 +485,18 @@ export class OrdersController {
       throw new ForbiddenException(
         'Missing permission to apply a discount at checkout',
       );
+    }
+    // A manual discount or coupon additionally needs a fresh manager-PIN
+    // approval, even for roles that hold discounts.apply (cashiers and
+    // managers alike): the permission says who may ask, the PIN proves a
+    // manager was at the till for this bill. The automatic happy-hour
+    // discount is not a manual discount, so a plain checkout never asks.
+    if (
+      (dto.discountPercent ?? 0) > 0 ||
+      (dto.discountFlat ?? 0) > 0 ||
+      !!dto.couponCode
+    ) {
+      await this.requireManagerApproval(user, dto.managerApprovalToken);
     }
     return this.ordersService.checkout(
       branchId,

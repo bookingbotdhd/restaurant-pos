@@ -16,6 +16,8 @@ import {
   registerSchema,
   twoFactorCodeSchema,
   twoFactorDisableSchema,
+  verifyManagerPinSchema,
+  type ManagerPinApproval,
   type SessionUser,
 } from '@restroos/types';
 import { Throttle } from '@nestjs/throttler';
@@ -94,6 +96,22 @@ export class AuthController {
     const { token, user } = await this.authService.pinLogin(body as never);
     this.setSessionCookie(res, token);
     return { user };
+  }
+
+  // Manager-PIN approval for one gated till action (discount, void). Same
+  // 5/min/IP throttle as pin-login — the secret is the same size. This
+  // verifies a PIN only: it signs nobody in and sets no cookie, so the
+  // cashier's session is untouched. The answer is a 5-minute approval
+  // token the gated endpoint re-checks; see AuthService.verifyManagerPin.
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('verify-manager-pin')
+  @UsePipes(new ZodValidationPipe(verifyManagerPinSchema))
+  async verifyManagerPin(
+    @CurrentUser() user: SessionUser,
+    @Body() body: unknown,
+  ): Promise<ManagerPinApproval> {
+    return this.authService.verifyManagerPin(user.restaurantId, body as never);
   }
 
   // Delete my own account; asks for the password again.
