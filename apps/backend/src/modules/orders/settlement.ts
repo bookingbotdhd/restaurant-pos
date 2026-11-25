@@ -6,8 +6,28 @@
 // reduces the taxable value too. The tax breakup shown on the bill is scaled
 // by (subtotal - discount) / subtotal, i.e. the discount is spread pro-rata
 // over the lines. Loyalty points are a form of tender, not a price reduction,
-// so redeeming them does not change the tax. Tips and delivery fees are
-// outside the taxable subtotal.
+// so redeeming them does not change the tax. Tips, delivery fees and the
+// service charge are outside the taxable subtotal.
+//
+// Order of operations in computeBill (each step feeds the next):
+//   1. subtotal = sum of tax-inclusive line totals.
+//   2. discounts: manual % / flat + coupon / happy-hour (autoDiscount) +
+//      BOGO free-item value. They stack additively and are capped together
+//      at the subtotal, exactly as manual + auto already stacked.
+//   3. tax breakup scaled pro-rata by (subtotal - discount) / subtotal.
+//   4. service charge = serviceChargePercent % of the DISCOUNTED subtotal
+//      (subtotal - discountAmount), i.e. the guest is not charged for what
+//      was discounted away. It is additive, like a tip, and does not change
+//      the tax breakup.
+//   5. totalDue = subtotal - discounts - loyalty + service charge + tip
+//      + delivery fee. Loyalty redemption still caps at the discounted
+//      total (before service charge / tip / delivery), as before.
+//
+// Split payment: settlePayments below already takes any number of payment
+// lines (cash / card / UPI / ...) against one balance. The sum must cover
+// the balance exactly — a short payment is refused unless allowPartial was
+// passed (recorded as a part-payment, the rest stays due), and an excess is
+// refused unless a cash line can absorb it as change. See its own comment.
 
 import { BadRequestException } from '@nestjs/common';
 import { computeOrderTotals, round2, type PricedLine } from './pricing';
@@ -20,32 +40,100 @@ export interface BillInput {
   discountFlat?: number;
   /** Coupon / happy-hour discount resolved by the server. */
   autoDiscount?: number;
+  /** Service charge percentage, applied to the discounted subtotal. */
+  serviceChargePercent?: number;
+  /** BOGO rule (buy `buyQty`, get `getQty` cheapest free); null/omitted = off. */
+  bogoRule?: BogoRule | null;
   /** Currency value of the loyalty points the guest wants to redeem. */
   loyaltyDiscountRequested?: number;
   tip?: number;
   deliveryFee?: number;
 }
 
+/** Buy-one-get-one(-or-more) rule: buy `buyQty`, get `getQty` free. */
+export interface BogoRule {
+  /** Units the guest must pay for in each group (1 = buy-one-get-one). */
+  buyQty: number;
+  /** Cheapest units free in each group of buyQty + getQty. */
+  getQty: number;
+}
+
 export interface Bill {
   subtotal: number;
-  /** Manual + coupon/promotion discount, never more than the subtotal. */
+  /** Manual + coupon/promotion + BOGO discount, never more than the subtotal. */
   discountAmount: number;
   /** discountAmount as a percentage of the subtotal (0 when there is none). */
   discountPercent: number;
+  /** Value of the free item(s) under the BOGO offer (inside discountAmount). */
+  bogoDiscountAmount: number;
   /** Tax breakup after the discount. */
   taxAmount: number;
+  /** Service charge percent actually applied. */
+  serviceChargePercent: number;
+  /** Service charge amount, on top of the discounted subtotal. */
+  serviceChargeAmount: number;
   loyaltyDiscountAmount: number;
   tipAmount: number;
   deliveryFee: number;
-  /** What the guest owes: subtotal - discounts - loyalty + tip + delivery. */
+  /** What the guest owes: subtotal - discounts - loyalty + service charge + tip + delivery. */
   totalDue: number;
 }
 
+/**
+ * Value of the free items under a BOGO rule. Every (buyQty + getQty) units
+ * earn getQty free, and the free ones are always the cheapest units on the
+ * bill — so on a 2x ₹100 + 1x ₹250 bill, buy-1-get-1 frees ₹100, not ₹250.
+ * Lines without a unit price / quantity cannot be priced this way and are
+ * skipped, so a caller that only has line totals gets no BOGO rather than a
+ * wrong one. The result never exceeds the subtotal.
+ */
+export function computeBogoDiscount(
+  lines: PricedLine[],
+  rule: BogoRule | null | undefined,
+): number {
+  if (!rule) return 0;
+  const buyQty = Math.floor(rule.buyQty);
+  const getQty = Math.floor(rule.getQty);
+  if (!(buyQty >= 1) || !(getQty >= 1)) return 0;
+  const unitPrices: number[] = [];
+  for (const line of lines) {
+    const qty = Math.floor(line.quantity ?? 0);
+    const unit = line.unitPriceInclusive;
+    if (!(qty > 0) || !(unit !== undefined && unit > 0)) continue;
+    for (let i = 0; i < qty; i++) unitPrices.push(round2(unit));
+  }
+  const groupSize = buyQty + getQty;
+  const freeCount =
+    Math.floor(unitPrices.length / groupSize) * getQty;
+  if (freeCount <= 0) return 0;
+  unitPrices.sort((a, b) => a - b);
+  const subtotal = round2(
+    lines.reduce((sum, l) => sum + l.lineTotal, 0),
+  );
+  return round2(
+    Math.min(
+      unitPrices.slice(0, freeCount).reduce((sum, p) => sum + p, 0),
+      subtotal,
+    ),
+  );
+}
+
 export function computeBill(input: BillInput): Bill {
+  const bogoDiscountAmount = computeBogoDiscount(input.lines, input.bogoRule);
   const totals = computeOrderTotals(
     input.lines,
     input.discountPercent ?? 0,
-    (input.discountFlat ?? 0) + (input.autoDiscount ?? 0),
+    (input.discountFlat ?? 0) +
+      (input.autoDiscount ?? 0) +
+      bogoDiscountAmount,
+  );
+  const serviceChargePercent = Math.min(
+    Math.max(input.serviceChargePercent ?? 0, 0),
+    100,
+  );
+  // On the discounted subtotal (step 4 above): no charge on discounted value.
+  const serviceChargeAmount = round2(
+    ((totals.subtotal - totals.discountAmount) * serviceChargePercent) / 100,
   );
   const loyaltyDiscountAmount = round2(
     Math.min(
@@ -66,12 +154,19 @@ export function computeBill(input: BillInput): Bill {
     subtotal: totals.subtotal,
     discountAmount: totals.discountAmount,
     discountPercent: discountPercentOf(totals.subtotal, totals.discountAmount),
+    bogoDiscountAmount,
     taxAmount,
+    serviceChargePercent,
+    serviceChargeAmount,
     loyaltyDiscountAmount,
     tipAmount,
     deliveryFee,
     totalDue: round2(
-      totals.totalAmount - loyaltyDiscountAmount + tipAmount + deliveryFee,
+      totals.totalAmount -
+        loyaltyDiscountAmount +
+        serviceChargeAmount +
+        tipAmount +
+        deliveryFee,
     ),
   };
 }

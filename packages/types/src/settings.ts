@@ -35,6 +35,13 @@ export const restaurantSettingsSchema = z.object({
   onlinePriceAdjustValue: z.coerce.number().min(-100000).max(100000).optional(),
   maxManualDiscountPercent: z.coerce.number().min(0).max(100).optional(),
   requireDiscountReason: z.boolean().optional(),
+  // Service charge added at checkout, as a percent of the discounted
+  // subtotal. 0 = off.
+  serviceChargePercent: z.coerce.number().min(0).max(100).optional(),
+  // BOGO offer: buy `bogoBuyQty`, get `bogoGetQty` cheapest items free.
+  bogoEnabled: z.boolean().optional(),
+  bogoBuyQty: z.coerce.number().int().min(1).max(99).optional(),
+  bogoGetQty: z.coerce.number().int().min(1).max(99).optional(),
 });
 export type RestaurantSettingsDto = z.infer<typeof restaurantSettingsSchema>;
 

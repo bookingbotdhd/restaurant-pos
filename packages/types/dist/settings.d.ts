@@ -22,6 +22,10 @@ export declare const restaurantSettingsSchema: z.ZodObject<{
     onlinePriceAdjustValue: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
     maxManualDiscountPercent: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
     requireDiscountReason: z.ZodOptional<z.ZodBoolean>;
+    serviceChargePercent: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
+    bogoEnabled: z.ZodOptional<z.ZodBoolean>;
+    bogoBuyQty: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
+    bogoGetQty: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
 }, z.core.$strip>;
 export type RestaurantSettingsDto = z.infer<typeof restaurantSettingsSchema>;
 export declare const branchSettingsSchema: z.ZodObject<{

@@ -69,6 +69,11 @@ export interface EscposReceiptOrder {
   subtotal: number;
   discountAmount: number;
   taxAmount: number;
+  /** Service charge added on top of the discounted subtotal. */
+  serviceChargeAmount?: number;
+  serviceChargePercent?: number;
+  /** Free-item value under BOGO; already inside discountAmount. */
+  bogoDiscountAmount?: number;
   tipAmount: number;
   loyaltyPointsRedeemed: number;
   loyaltyDiscountAmount: number;
@@ -178,11 +183,18 @@ export function buildReceiptEscPosJob({
   }
   w.rule();
 
+  // BOGO is inside the discount above; name it on that line so the guest
+  // can see why the discount is what it is, without a second row that
+  // would look like a further deduction.
+  const bogoNote =
+    order.bogoDiscountAmount && order.bogoDiscountAmount > 0
+      ? ` · BOGO ${money(order.bogoDiscountAmount)} free`
+      : '';
   if (branch.taxMode === 'EXCLUSIVE') {
     w.row('Subtotal', money(order.subtotal - order.taxAmount));
     if (order.discountAmount > 0) {
       w.row(
-        discountLabel(order.discountPercent),
+        `${discountLabel(order.discountPercent)}${bogoNote}`,
         `-${money(order.discountAmount)}`,
       );
     }
@@ -191,7 +203,7 @@ export function buildReceiptEscPosJob({
     w.row('Subtotal', money(order.subtotal));
     if (order.discountAmount > 0) {
       w.row(
-        discountLabel(order.discountPercent),
+        `${discountLabel(order.discountPercent)}${bogoNote}`,
         `-${money(order.discountAmount)}`,
       );
     }
@@ -212,6 +224,14 @@ export function buildReceiptEscPosJob({
     w.row(
       `Loyalty (${order.loyaltyPointsRedeemed} pts)`,
       `-${money(order.loyaltyDiscountAmount)}`,
+    );
+  }
+  if (order.serviceChargeAmount && order.serviceChargeAmount > 0) {
+    w.row(
+      order.serviceChargePercent && order.serviceChargePercent > 0
+        ? `Service charge (${Number(order.serviceChargePercent)}%)`
+        : 'Service charge',
+      money(order.serviceChargeAmount),
     );
   }
   if (order.tipAmount > 0) w.row('Tip', money(order.tipAmount));

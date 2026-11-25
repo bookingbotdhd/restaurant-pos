@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { discountSummary, parseMoney, planPayment } from "./bill.ts";
+import { discountSummary, parseMoney, planPayment, planSplitPayments } from "./bill.ts";
 
 test("a blank entry pays the whole balance", () => {
   const p = planPayment({ remaining: 180, entered: null, method: "UPI" });
@@ -45,6 +45,107 @@ test("a bill already covered (points / gift card) needs no payment", () => {
 test("cents survive float arithmetic", () => {
   const p = planPayment({ remaining: 0.3, entered: 0.1, method: "CASH" });
   assert.equal(p.balanceAfter, 0.2);
+});
+
+test("split payment: cash + card covering the balance exactly", () => {
+  const p = planSplitPayments({
+    remaining: 500,
+    lines: [
+      { method: "CASH", entered: 200 },
+      { method: "CARD", entered: 300 },
+    ],
+  });
+  assert.equal(p.valid, true);
+  assert.equal(p.partial, false);
+  assert.equal(p.totalApplied, 500);
+  assert.equal(p.balanceAfter, 0);
+  assert.equal(p.change, 0);
+  assert.deepEqual(
+    p.payable.map((l) => [l.method, l.applied]),
+    [
+      ["CASH", 200],
+      ["CARD", 300],
+    ],
+  );
+});
+
+test("split payment: a single blank line still pays the whole balance", () => {
+  const p = planSplitPayments({
+    remaining: 180,
+    lines: [{ method: "UPI", entered: null }],
+  });
+  assert.equal(p.valid, true);
+  assert.deepEqual(p.payable, [{ method: "UPI", applied: 180, tendered: undefined, change: 0 }]);
+});
+
+test("split payment: blank means the rest at that line, in order", () => {
+  const p = planSplitPayments({
+    remaining: 500,
+    lines: [
+      { method: "CARD", entered: 200 },
+      { method: "CASH", entered: null },
+    ],
+  });
+  assert.deepEqual(
+    p.payable.map((l) => l.applied),
+    [200, 300],
+  );
+  assert.equal(p.partial, false);
+});
+
+test("split payment: cash over-tender on the last line is change", () => {
+  const p = planSplitPayments({
+    remaining: 500,
+    lines: [
+      { method: "CARD", entered: 300 },
+      { method: "CASH", entered: 250 },
+    ],
+  });
+  assert.equal(p.payable[1].applied, 200);
+  assert.equal(p.payable[1].tendered, 250);
+  assert.equal(p.change, 50);
+  assert.equal(p.partial, false);
+});
+
+test("split payment: a non-cash line above the running balance is clamped", () => {
+  const p = planSplitPayments({
+    remaining: 100,
+    lines: [
+      { method: "CARD", entered: 80 },
+      { method: "UPI", entered: 50 },
+    ],
+  });
+  assert.equal(p.payable[1].applied, 20);
+  assert.equal(p.clamped, true);
+  assert.equal(p.partial, false);
+});
+
+test("split payment: short of the balance is a part payment", () => {
+  const p = planSplitPayments({
+    remaining: 500,
+    lines: [{ method: "CASH", entered: 200 }],
+  });
+  assert.equal(p.partial, true);
+  assert.equal(p.balanceAfter, 300);
+});
+
+test("split payment: zero, negative or junk lines are not recordable", () => {
+  for (const entered of [0, -5, Number.NaN]) {
+    assert.equal(
+      planSplitPayments({ remaining: 100, lines: [{ method: "CASH", entered }] }).valid,
+      false,
+    );
+  }
+});
+
+test("split payment: a bill already covered needs no payment", () => {
+  const p = planSplitPayments({
+    remaining: 0,
+    lines: [{ method: "CASH", entered: null }],
+  });
+  assert.equal(p.valid, true);
+  assert.equal(p.partial, false);
+  assert.deepEqual(p.payable, []);
 });
 
 test("discount shows percentage and amount together", () => {

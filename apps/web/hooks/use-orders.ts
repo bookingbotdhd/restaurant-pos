@@ -19,6 +19,8 @@ export interface CreatedOrder {
   taxAmount: string;
   discountAmount: string;
   tipAmount: string;
+  serviceChargeAmount?: string;
+  bogoDiscountAmount?: string;
   loyaltyPointsRedeemed: number;
   loyaltyDiscountAmount: string;
   totalAmount: string;
@@ -64,6 +66,9 @@ export interface BillPreview {
   couponCode: string | null;
   promotionName: string | null;
   taxAmount: number;
+  serviceChargePercent: number;
+  serviceChargeAmount: number;
+  bogoDiscountAmount: number;
   loyaltyPointsRedeemed: number;
   loyaltyDiscountAmount: number;
   tipAmount: number;
@@ -75,7 +80,7 @@ export interface BillPreview {
 
 export type BillAdjustments = Pick<
   CheckoutDto,
-  "discountPercent" | "discountFlat" | "tipAmount" | "loyaltyPointsToRedeem" | "couponCode" | "customerId"
+  "discountPercent" | "discountFlat" | "tipAmount" | "loyaltyPointsToRedeem" | "couponCode" | "customerId" | "serviceChargePercent" | "applyBogo"
 >;
 
 export function useBillPreview(branchId: string | null, orderId: string, adj: BillAdjustments, enabled = true) {
@@ -146,6 +151,8 @@ export interface OrderDetail {
   taxAmount: string;
   discountAmount: string;
   tipAmount: string;
+  serviceChargeAmount?: string;
+  bogoDiscountAmount?: string;
   totalAmount: string;
   createdAt: string;
   billedAt: string | null;

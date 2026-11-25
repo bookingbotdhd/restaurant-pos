@@ -1464,12 +1464,14 @@ export class OrdersService {
       (adj.discountFlat ?? 0) > 0 ||
       (adj.tipAmount ?? 0) > 0 ||
       (adj.loyaltyPointsToRedeem ?? 0) > 0 ||
+      (adj.serviceChargePercent ?? 0) > 0 ||
+      adj.applyBogo === false ||
       !!adj.couponCode;
 
     if (locked) {
       if (asked) {
         throw new BadRequestException(
-          'Discount, tip and loyalty points are locked once a payment has been taken on this bill',
+          'Discount, tip, service charge, BOGO and loyalty points are locked once a payment has been taken on this bill',
         );
       }
       const bill: Bill = {
@@ -1479,7 +1481,10 @@ export class OrdersService {
           Number(order.subtotal),
           Number(order.discountAmount),
         ),
+        bogoDiscountAmount: Number(order.bogoDiscountAmount),
         taxAmount: Number(order.taxAmount),
+        serviceChargePercent: Number(order.serviceChargePercent),
+        serviceChargeAmount: Number(order.serviceChargeAmount),
         loyaltyDiscountAmount: Number(order.loyaltyDiscountAmount),
         tipAmount: Number(order.tipAmount),
         deliveryFee: Number(order.deliveryFee),
@@ -1503,13 +1508,21 @@ export class OrdersService {
       where: { id: branchId },
       include: { restaurant: true },
     });
-    const lines = order.items.map((item) =>
-      priceLine({
+    const lines = order.items.map((item) => {
+      const unitPriceInclusive =
+        Number(item.lineTotal) / item.quantity;
+      return {
+        ...priceLine({
+          quantity: item.quantity,
+          unitPriceInclusive,
+          taxRatePercent: Number(item.taxRateSnapshot),
+        }),
+        // Per-unit price (modifiers included, via lineTotal / quantity) so
+        // the BOGO rule can pick the cheapest free units.
+        unitPriceInclusive,
         quantity: item.quantity,
-        unitPriceInclusive: Number(item.lineTotal) / item.quantity,
-        taxRatePercent: Number(item.taxRateSnapshot),
-      }),
-    );
+      };
+    });
     // Coupon / happy-hour discount, worked out on the bill's own subtotal and
     // added to any manual discount. A bad coupon code throws here, before
     // anything is charged.
@@ -1534,6 +1547,19 @@ export class OrdersService {
       discountPercent: adj.discountPercent,
       discountFlat: adj.discountFlat,
       autoDiscount: auto.amount,
+      // Service charge: this bill's override, else the restaurant default
+      // from Settings (0 = off). BOGO: this bill's opt-out, else the
+      // restaurant's configured rule when it is switched on.
+      serviceChargePercent:
+        adj.serviceChargePercent ??
+        Number(branch.restaurant.serviceChargePercent),
+      bogoRule:
+        adj.applyBogo === false || !branch.restaurant.bogoEnabled
+          ? null
+          : {
+              buyQty: branch.restaurant.bogoBuyQty,
+              getQty: branch.restaurant.bogoGetQty,
+            },
       loyaltyDiscountRequested:
         pointsToRedeem * Number(branch.restaurant.loyaltyPointValue),
       tip: adj.tipAmount,
@@ -1575,6 +1601,9 @@ export class OrdersService {
         couponCode: order.couponCode,
         promotionName: order.promotionName,
         taxAmount: Number(order.taxAmount),
+        serviceChargePercent: Number(order.serviceChargePercent),
+        serviceChargeAmount: Number(order.serviceChargeAmount),
+        bogoDiscountAmount: Number(order.bogoDiscountAmount),
         loyaltyPointsRedeemed: order.loyaltyPointsRedeemed,
         loyaltyDiscountAmount: Number(order.loyaltyDiscountAmount),
         tipAmount: Number(order.tipAmount),
@@ -1636,6 +1665,9 @@ export class OrdersService {
         discountAmount: view.discountAmount,
         discountPercent: view.discountPercent,
         taxAmount: view.taxAmount,
+        serviceChargePercent: view.serviceChargePercent,
+        serviceChargeAmount: view.serviceChargeAmount,
+        bogoDiscountAmount: view.bogoDiscountAmount,
         tipAmount: view.tipAmount,
         loyaltyPointsRedeemed: view.loyaltyPointsRedeemed,
         loyaltyDiscountAmount: view.loyaltyDiscountAmount,
@@ -1859,6 +1891,9 @@ export class OrdersService {
               taxAmount: bill.taxAmount,
               couponCode: auto.couponCode ?? null,
               promotionName: auto.promotionName ?? null,
+              serviceChargePercent: bill.serviceChargePercent,
+              serviceChargeAmount: bill.serviceChargeAmount,
+              bogoDiscountAmount: bill.bogoDiscountAmount,
               loyaltyPointsRedeemed: actualPointsRedeemed,
               loyaltyDiscountAmount,
               tipAmount: bill.tipAmount,

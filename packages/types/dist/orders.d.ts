@@ -190,6 +190,8 @@ export declare const billPreviewSchema: z.ZodObject<{
     tipAmount: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
     loyaltyPointsToRedeem: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
     couponCode: z.ZodOptional<z.ZodString>;
+    serviceChargePercent: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
+    applyBogo: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strip>;
 export type BillPreviewDto = z.infer<typeof billPreviewSchema>;
 export declare const checkoutSchema: z.ZodObject<{
@@ -218,6 +220,8 @@ export declare const checkoutSchema: z.ZodObject<{
     tipAmount: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
     loyaltyPointsToRedeem: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
     couponCode: z.ZodOptional<z.ZodString>;
+    serviceChargePercent: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
+    applyBogo: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strip>;
 export type CheckoutDto = z.infer<typeof checkoutSchema>;
 export declare const refundSchema: z.ZodObject<{

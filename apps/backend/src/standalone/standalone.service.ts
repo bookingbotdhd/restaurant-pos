@@ -87,6 +87,10 @@ export class StandaloneService {
         upiVpa: r.upiVpa,
         upiPayeeName: r.upiPayeeName ?? r.name,
         maxManualDiscountPercent: Number(r.maxManualDiscountPercent),
+        serviceChargePercent: Number(r.serviceChargePercent),
+        bogoEnabled: r.bogoEnabled,
+        bogoBuyQty: r.bogoBuyQty,
+        bogoGetQty: r.bogoGetQty,
       },
       branch: {
         id: branch.id,
