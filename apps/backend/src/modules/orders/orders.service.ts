@@ -83,6 +83,17 @@ export class OrdersService {
     });
   }
 
+  // Parked orders for the POS held-orders list, most recently held first.
+  // Held orders are deliberately NOT in listOpen: their table was released
+  // on hold, so they must not show up as that table's open bill.
+  async listHeld(branchId: string) {
+    return this.prisma.order.findMany({
+      where: { branchId, status: 'ON_HOLD' },
+      include: { table: true, items: true, customer: true },
+      orderBy: { heldAt: 'desc' },
+    });
+  }
+
   async getOrder(branchId: string, id: string) {
     const order = await this.prisma.order.findFirst({
       where: { id, branchId },
@@ -633,7 +644,9 @@ export class OrdersService {
         ? { status: 'OPEN', acceptance: 'PENDING' }
         : tab === 'active'
           ? {
-              status: { in: ['OPEN', 'BILLED'] },
+              // Held orders stay in progress: they are parked, not finished,
+              // and must not vanish from management until resumed or cancelled.
+              status: { in: ['OPEN', 'BILLED', 'ON_HOLD'] },
               acceptance: { not: 'PENDING' },
             }
           : {
@@ -654,6 +667,142 @@ export class OrdersService {
       orderBy: { createdAt: 'desc' },
       take: 200,
     });
+  }
+
+  // Parks an open order (OPEN -> ON_HOLD) so the guest can pause and the
+  // table can be used by someone else. The order itself is untouched —
+  // items, totals and any part-payment stay exactly as they were — and its
+  // kitchen tickets are kept, not cancelled, so resuming restores them as
+  // they were (the KDS hides held orders; see kds.service.ts).
+  // The table is released through the same releaseTableIfIdle() every other
+  // order-ending path uses, so a second open bill on the same table keeps
+  // it occupied. The tableId stays on the order so resume knows where it
+  // was. An order waiting for acceptance (PENDING) must be accepted or
+  // declined first — it has no kitchen ticket yet and holding it would
+  // strand it where acceptOrder() can no longer reach it.
+  async holdOrder(branchId: string, orderId: string, userId: string) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, branchId },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.status === 'ON_HOLD') {
+      throw new ConflictException('This order is already on hold');
+    }
+    if (order.status !== 'OPEN') {
+      throw new BadRequestException(
+        `Only an open order can be held — this one is ${order.status.toLowerCase()}`,
+      );
+    }
+    if (order.acceptance === 'PENDING') {
+      throw new ConflictException(
+        'This order has not been accepted yet - accept or decline it before holding it',
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // Compare-and-set: a checkout racing this call can never end up both
+      // PAID and ON_HOLD.
+      const flipped = await tx.order.updateMany({
+        where: { id: orderId, status: 'OPEN' },
+        data: { status: 'ON_HOLD', heldAt: new Date(), heldById: userId },
+      });
+      if (flipped.count === 0) {
+        throw new ConflictException(
+          'This order was just paid or changed - refresh and check it',
+        );
+      }
+      await this.releaseTableIfIdle(tx, order.tableId, orderId);
+    });
+
+    this.realtime.emitToBranch(branchId, 'order.updated', {
+      id: orderId,
+      status: 'ON_HOLD',
+    });
+    this.realtime.emitToBranch(branchId, 'kot.updated', { orderId });
+    if (order.tableId) {
+      this.realtime.emitToBranch(branchId, 'table.updated', {
+        id: order.tableId,
+      });
+    }
+    await this.audit.record({
+      userId,
+      action: 'order.held',
+      entity: 'Order',
+      entityId: orderId,
+      metadata: {
+        orderNumber: order.orderNumber,
+        tableId: order.tableId,
+        type: order.type,
+        total: order.totalAmount.toString(),
+      },
+    });
+    return this.getOrder(branchId, orderId);
+  }
+
+  // Brings a held order back (ON_HOLD -> OPEN) with its items, totals and
+  // any part-payment intact. The table it was held from is marked OCCUPIED
+  // again — the same unconditional re-occupy createOrder() does when a
+  // table gets a new order, and several open bills may share a table — so
+  // a new bill opened on that table while this one was held does not block
+  // the resume. If the table was deleted meanwhile (tableId nulled by the
+  // FK), the order simply resumes without one.
+  async resumeOrder(branchId: string, orderId: string, userId: string) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, branchId },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.status !== 'ON_HOLD') {
+      throw new BadRequestException(
+        order.status === 'OPEN'
+          ? 'This order is already open — it is not on hold'
+          : `Only a held order can be resumed — this one is ${order.status.toLowerCase()}`,
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const flipped = await tx.order.updateMany({
+        where: { id: orderId, status: 'ON_HOLD' },
+        data: { status: 'OPEN', heldAt: null, heldById: null },
+      });
+      if (flipped.count === 0) {
+        throw new ConflictException(
+          'This order was just changed by someone else - refresh and check it',
+        );
+      }
+      if (order.tableId) {
+        // updateMany, not update: if the table row is somehow gone the
+        // resume must still succeed (its FK would normally already have
+        // nulled tableId, but never fail a resume over a missing table).
+        await tx.table.updateMany({
+          where: { id: order.tableId },
+          data: { status: 'OCCUPIED', statusSince: new Date() },
+        });
+      }
+    });
+
+    this.realtime.emitToBranch(branchId, 'order.updated', {
+      id: orderId,
+      status: 'OPEN',
+    });
+    this.realtime.emitToBranch(branchId, 'kot.updated', { orderId });
+    if (order.tableId) {
+      this.realtime.emitToBranch(branchId, 'table.updated', {
+        id: order.tableId,
+      });
+    }
+    await this.audit.record({
+      userId,
+      action: 'order.resumed',
+      entity: 'Order',
+      entityId: orderId,
+      metadata: {
+        orderNumber: order.orderNumber,
+        tableId: order.tableId,
+        type: order.type,
+        total: order.totalAmount.toString(),
+      },
+    });
+    return this.getOrder(branchId, orderId);
   }
 
   async acceptOrder(branchId: string, orderId: string, userId: string) {
@@ -847,11 +996,12 @@ export class OrdersService {
     );
   }
 
-  // Cancels an unpaid order. Rules (unchanged): only OPEN orders, and not
-  // once the kitchen has started cooking. An OPEN order has taken no payment
+  // Cancels an unpaid order. Rules: only OPEN or ON_HOLD orders (a held
+  // order can be cancelled without resuming it first), and not once the
+  // kitchen has started cooking. An OPEN order has taken no payment
   // and no stock (stock leaves at checkout), so there is nothing to reverse;
   // paid orders go through refund() instead. The status flip is conditional on
-  // OPEN, so a checkout racing this call can never end up both PAID and
+  // OPEN/ON_HOLD, so a checkout racing this call can never end up both PAID and
   // CANCELLED.
   async cancelOrder(
     branchId: string,
@@ -895,11 +1045,11 @@ export class OrdersService {
           'This order is not waiting for acceptance - it may already have been accepted or declined',
         );
       }
-    } else if (order.status !== 'OPEN') {
+    } else if (order.status !== 'OPEN' && order.status !== 'ON_HOLD') {
       throw new BadRequestException(
         order.status === 'PAID'
           ? 'This bill is already paid - use Refund to reverse it'
-          : 'Only an open order can be cancelled',
+          : 'Only an open or held order can be cancelled',
       );
     }
     if (order.payments.length > 0) {
@@ -933,7 +1083,11 @@ export class OrdersService {
       const flipped = await tx.order.updateMany({
         where: {
           id: orderId,
-          status: 'OPEN',
+          // A held order can be cancelled without resuming it first; a
+          // declined incoming order is still OPEN + PENDING (see above).
+          status: options.declineIncoming
+            ? 'OPEN'
+            : { in: ['OPEN', 'ON_HOLD'] },
           ...(options.declineIncoming ? { acceptance: 'PENDING' } : {}),
         },
         data: {
@@ -1400,6 +1554,11 @@ export class OrdersService {
     if (order.status === 'CANCELLED') {
       throw new BadRequestException('This order was cancelled');
     }
+    if (order.status === 'ON_HOLD') {
+      throw new BadRequestException(
+        'This order is on hold - resume it before billing',
+      );
+    }
     if (order.status === 'PAID') {
       const total = Number(order.totalAmount);
       return {
@@ -1517,6 +1676,11 @@ export class OrdersService {
         (p) => p.clientRequestId === dto.requestId,
       );
       if (replay) return this.checkoutResult(branchId, orderId);
+    }
+    if (order.status === 'ON_HOLD') {
+      throw new BadRequestException(
+        'This order is on hold - resume it before checkout',
+      );
     }
     if (order.status !== 'OPEN') {
       throw new BadRequestException('Order is not open for checkout');

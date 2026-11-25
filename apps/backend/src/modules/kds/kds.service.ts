@@ -23,10 +23,17 @@ export class KdsService {
   // A screen pinned to a station also shows tickets with no station: menu
   // items nobody assigned to a station still have to be cooked somewhere, and
   // hiding them from every pinned screen made those orders vanish.
+  // Held orders are kept out: a parked order is not being cooked right now.
+  // Its tickets are NOT cancelled on hold — they are preserved exactly as
+  // they were and come back onto this screen when the order is resumed.
+  // Only ON_HOLD is excluded (not a blanket OPEN-only filter), so nothing
+  // else about which tickets show here changes.
+  // (progress() below already only shows OPEN orders, so a held order's
+  // progress is hidden from the POS kitchen widget too.)
   async listActiveTickets(branchId: string, stationId?: string) {
     return this.prisma.kot.findMany({
       where: {
-        order: { branchId },
+        order: { branchId, status: { not: 'ON_HOLD' } },
         status: { notIn: ['SERVED', 'CANCELLED', 'REJECTED'] },
         ...(stationId ? { OR: [{ stationId }, { stationId: null }] } : {}),
       },

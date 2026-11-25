@@ -1,12 +1,13 @@
 "use client";
 
-import { ChevronLeft, MonitorSmartphone, ShoppingCart } from "lucide-react";
+import { ChevronLeft, MonitorSmartphone, Pause, ShoppingCart } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { StatusNote, useNoteToast } from "@/components/ui/status-note";
 import { publishDisplay } from "@/lib/customer-display";
 import { BranchNotice } from "@/components/layout/branch-notice";
 import { CartPanel, type DeliveryDetails, type PosOrderType } from "@/components/pos/cart-panel";
+import { HeldOrdersList } from "@/components/pos/held-orders-list";
 import { cartLineKey, portionText, type CartLine, type Portion } from "@/components/pos/cart-line";
 import { clearDraft, switchTableDraft, type Drafts } from "@/lib/pos-drafts";
 import { CheckoutPanel } from "@/components/pos/checkout-panel";
@@ -20,7 +21,9 @@ import type { MenuItem } from "@/hooks/use-menu";
 import {
   useAddOrderItems,
   useCreateOrder,
+  useHeldOrders,
   useOpenOrdersForTable,
+  useResumeOrder,
   type CreatedOrder,
   type OpenOrder,
 } from "@/hooks/use-orders";
@@ -64,6 +67,12 @@ function PosPageInner() {
   const [pickerItem, setPickerItem] = useState<MenuItem | null>(null);
   const [activeOrder, setActiveOrder] = useState<CreatedOrder | null>(null);
   const [activeCustomer, setActiveCustomer] = useState<OpenOrder["customer"]>(null);
+  // Held (parked) orders, and which one a resume is in flight for.
+  const [heldOpen, setHeldOpen] = useState(false);
+  const [resumingHeldId, setResumingHeldId] = useState<string | null>(null);
+  const heldQuery = useHeldOrders(branchId);
+  const heldOrders = heldQuery.data ?? [];
+  const resumeOrder = useResumeOrder(branchId);
   // /pos?tableId=... can change while this page stays mounted.
   const [seenPreselected, setSeenPreselected] = useState(preselectedTableId);
   if (preselectedTableId !== seenPreselected) {
@@ -230,6 +239,28 @@ function PosPageInner() {
     }
   };
 
+  // Resume a held order back into the checkout panel, on the table it was
+  // held from (if it still has one).
+  const handleResumeHeld = (orderId: string) => {
+    setResumingHeldId(orderId);
+    resumeOrder.mutate(orderId, {
+      onSuccess: (order) => {
+        setHeldOpen(false);
+        if (order.tableId) {
+          setOrderType("DINE_IN");
+          setTableId(order.tableId);
+        }
+        setActiveCustomer(order.customer ?? null);
+        setActiveOrder(order);
+        setCartOpen(true);
+        toast.success(`Order #${order.orderNumber} resumed`);
+      },
+      onError: (err) =>
+        toast.error(err instanceof ApiError ? err.message : "Could not resume order"),
+      onSettled: () => setResumingHeldId(null),
+    });
+  };
+
   const resetForNewOrder = () => {
     setActiveOrder(null);
     setCartOpen(false);
@@ -262,6 +293,15 @@ function PosPageInner() {
         <div className="min-w-0 flex-1">
           <KitchenProgressWidget branchId={branchId} />
         </div>
+        <button
+          type="button"
+          onClick={() => setHeldOpen((v) => !v)}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          title="Parked orders — resume one to keep serving or bill it"
+        >
+          <Pause className="h-3.5 w-3.5" />
+          Held{heldOrders.length > 0 ? ` (${heldOrders.length})` : ""}
+        </button>
         <a
           href="/customer-display"
           target="_blank"
@@ -275,6 +315,18 @@ function PosPageInner() {
       </div>
 
       <BranchNotice />
+
+      {heldOpen && (
+        <Card className="p-5">
+          <HeldOrdersList
+            orders={heldOrders}
+            isLoading={heldQuery.isLoading}
+            resumingId={resumingHeldId}
+            onResume={handleResumeHeld}
+            onClose={() => setHeldOpen(false)}
+          />
+        </Card>
+      )}
 
       {showTablePicker ? (
         <Card className="flex-1 overflow-hidden p-5">

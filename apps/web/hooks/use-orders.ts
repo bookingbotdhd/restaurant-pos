@@ -149,6 +149,7 @@ export interface OrderDetail {
   totalAmount: string;
   createdAt: string;
   billedAt: string | null;
+  heldAt: string | null;
   table: { id: string; name: string | null; number: string } | null;
   customer: Customer | null;
   items: {
@@ -275,6 +276,41 @@ export function useOpenOrdersForTable(branchId: string | null, tableId: string |
     // A table's bills change from other terminals; never trust a cached list.
     staleTime: 0,
     refetchOnMount: "always",
+  });
+}
+
+/** A parked order: an open bill plus when it was held and its table (if any). */
+export interface HeldOrder extends OpenOrder {
+  heldAt: string | null;
+  createdAt: string;
+  table: { id: string; name: string | null; number: string } | null;
+  items: { id: string; nameSnapshot: string; quantity: number }[];
+}
+
+export function useHeldOrders(branchId: string | null) {
+  return useQuery({
+    queryKey: ["orders", "held", branchId],
+    queryFn: () => api.get<HeldOrder[]>(`/orders/held?branchId=${branchId}`),
+    enabled: !!branchId,
+    refetchInterval: 15_000,
+  });
+}
+
+export function useHoldOrder(branchId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (orderId: string) =>
+      api.post<CreatedOrder>(`/orders/${orderId}/hold?branchId=${branchId}`),
+    onSuccess: () => invalidateBillViews(queryClient, branchId),
+  });
+}
+
+export function useResumeOrder(branchId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (orderId: string) =>
+      api.post<OrderDetail>(`/orders/${orderId}/resume?branchId=${branchId}`),
+    onSuccess: () => invalidateBillViews(queryClient, branchId),
   });
 }
 
