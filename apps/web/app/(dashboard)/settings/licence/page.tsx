@@ -1,14 +1,17 @@
 "use client";
 
+import { KeyRound } from "lucide-react";
 import { useState } from "react";
 import { toast } from "@/lib/toast";
 import { SettingsTabs } from "@/components/settings/settings-tabs";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { hasPermission, useCurrentUser } from "@/hooks/use-auth";
 import {
@@ -30,12 +33,16 @@ const STATUS_LABEL: Record<LicenceSummary["status"], string> = {
   EXPIRED: "Expired",
 };
 
-const STATUS_VARIANT: Record<LicenceSummary["status"], "outline" | "secondary" | "destructive"> = {
-  ISSUED: "outline",
-  ACTIVE: "secondary",
-  REVOKED: "destructive",
-  EXPIRED: "destructive",
+const STATUS_TONE: Record<LicenceSummary["status"], StatusTone> = {
+  ISSUED: "neutral",
+  ACTIVE: "success",
+  REVOKED: "danger",
+  EXPIRED: "danger",
 };
+
+// A licence expiring within 30 days reads as "expiring soon" (warning),
+// not plain active — the badge is the thing a manager scans for.
+const EXPIRING_SOON_MS = 30 * 24 * 60 * 60 * 1000;
 
 function formatDate(value: string | null) {
   return value ? new Date(value).toLocaleString() : "—";
@@ -48,10 +55,11 @@ export default function LicencePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-[32px] font-semibold tracking-tight text-foreground">Settings</h1>
-        <p className="text-sm text-muted-foreground">Restaurant, branch, and staff configuration</p>
-      </div>
+      <PageHeader
+        eyebrow="Settings"
+        title="Licence"
+        description="Activate this restaurant with the licence key the host issued you. One licence is active per restaurant at a time."
+      />
 
       <SettingsTabs />
 
@@ -77,14 +85,22 @@ function LicenceStatusCard() {
   const deactivate = useDeactivateLicence();
   const [key, setKey] = useState("");
   const [instanceId, setInstanceId] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
 
   const active = data?.active ?? null;
+  const expiresInMs = active?.expiresAt
+    ? new Date(active.expiresAt).getTime() - Date.now()
+    : null;
+  const expired = expiresInMs !== null && expiresInMs <= 0;
+  const expiringSoon =
+    expiresInMs !== null && expiresInMs > 0 && expiresInMs < EXPIRING_SOON_MS;
 
   const onActivate = () => {
     if (!key.trim()) {
-      toast.error("Enter the licence key the host gave you");
+      setFormError("Enter the licence key the host gave you");
       return;
     }
+    setFormError(null);
     activate.mutate(
       { key: key.trim(), instanceId: instanceId.trim() || undefined },
       {
@@ -92,7 +108,8 @@ function LicenceStatusCard() {
           setKey("");
           toast.success("Licence activated");
         },
-        onError: (err) => toast.error(err instanceof ApiError ? err.message : "Could not activate licence"),
+        onError: (err) =>
+          setFormError(err instanceof ApiError ? err.message : "Could not activate licence"),
       },
     );
   };
@@ -107,24 +124,21 @@ function LicenceStatusCard() {
 
   return (
     <Card className="flex flex-col gap-4 p-6">
-      <div>
-        <h2 className="text-[18px] font-medium text-foreground">Licence</h2>
-        <p className="text-sm text-muted-foreground">
-          Activate this restaurant with the licence key the host issued you. One licence is active per
-          restaurant at a time.
-        </p>
-      </div>
-
       {isLoading ? (
         <Skeleton className="h-24 rounded-lg" />
       ) : active ? (
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-3">
-            <Badge variant="secondary">Active</Badge>
+            <StatusBadge tone={expired ? "danger" : expiringSoon ? "warning" : "success"}>
+              {expired ? "Expired" : expiringSoon ? "Expiring soon" : "Active"}
+            </StatusBadge>
             <span className="font-mono text-sm text-foreground">…{active.lastFour}</span>
-            <span className="text-sm text-muted-foreground">Plan: {active.plan}</span>
           </div>
           <dl className="grid gap-1 text-sm sm:grid-cols-2">
+            <div className="flex gap-2">
+              <dt className="text-muted-foreground">Plan</dt>
+              <dd className="text-foreground">{active.plan}</dd>
+            </div>
             <div className="flex gap-2">
               <dt className="text-muted-foreground">Activated</dt>
               <dd className="text-foreground">{formatDate(active.activatedAt)}</dd>
@@ -158,7 +172,7 @@ function LicenceStatusCard() {
       ) : (
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-3">
-            <Badge variant="outline">Not activated</Badge>
+            <StatusBadge tone="neutral">Not activated</StatusBadge>
             <span className="text-sm text-muted-foreground">No licence is active for this restaurant.</span>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -167,7 +181,10 @@ function LicenceStatusCard() {
               <Input
                 id="licence-key"
                 value={key}
-                onChange={(e) => setKey(e.target.value)}
+                onChange={(e) => {
+                  setKey(e.target.value);
+                  setFormError(null);
+                }}
                 placeholder="RS-XXXX-XXXX-XXXX-XXXX"
                 autoComplete="off"
                 className="font-mono"
@@ -184,8 +201,13 @@ function LicenceStatusCard() {
               />
             </div>
           </div>
+          {formError && (
+            <p role="alert" className="text-sm text-destructive">
+              {formError}
+            </p>
+          )}
           <div>
-            <Button size="sm" onClick={onActivate} disabled={activate.isPending}>
+            <Button size="lg" onClick={onActivate} disabled={activate.isPending}>
               Activate
             </Button>
           </div>
@@ -316,12 +338,12 @@ function IssueLicenceCard() {
                 <TableCell className="text-foreground">{licence.plan}</TableCell>
                 <TableCell className="text-muted-foreground">{licence.issuedTo ?? "—"}</TableCell>
                 <TableCell>
-                  <Badge variant={STATUS_VARIANT[licence.status]}>{STATUS_LABEL[licence.status]}</Badge>
+                  <StatusBadge tone={STATUS_TONE[licence.status]}>{STATUS_LABEL[licence.status]}</StatusBadge>
                 </TableCell>
                 <TableCell className="text-muted-foreground">{formatDate(licence.issuedAt)}</TableCell>
                 <TableCell className="text-right">
                   {licence.status === "REVOKED" || licence.status === "EXPIRED" ? (
-                    <Badge variant="outline">—</Badge>
+                    <span className="text-muted-foreground">—</span>
                   ) : (
                     <Button size="sm" variant="destructive" onClick={() => onRevoke(licence)}>
                       Revoke
@@ -333,7 +355,12 @@ function IssueLicenceCard() {
           </TableBody>
         </Table>
       ) : (
-        <p className="py-6 text-center text-sm text-muted-foreground">No licence keys issued yet.</p>
+        <EmptyState
+          icon={KeyRound}
+          title="No licence keys issued yet"
+          description="Issue a key above and hand it to a restaurant to activate."
+          className="py-8"
+        />
       )}
     </Card>
   );

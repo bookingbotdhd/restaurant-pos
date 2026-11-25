@@ -68,7 +68,7 @@ export function TableTile({
             {STATUS_LABEL[table.status]}
           </span>
           {(table.status === "OCCUPIED" || table.status === "RESERVED") && (
-            <ElapsedTimer since={table.statusSince} className="flex items-center gap-1 text-xs font-semibold tabular-nums opacity-90" />
+            <ElapsedTimer since={table.statusSince} className="font-semibold" />
           )}
         </DropdownMenuTrigger>
         <DropdownMenuContent>

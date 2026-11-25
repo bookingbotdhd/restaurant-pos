@@ -5,6 +5,7 @@ import { ArrowLeft, CheckCircle2, ChefHat, Pause, Pencil, Play, Printer } from "
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { StatusNote, useNoteToast } from "@/components/ui/status-note";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -496,6 +497,7 @@ export function CheckoutPanel({
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
         <StatusNote note={note} onClear={clearNote} className="w-full text-left" />
+        <StatusBadge tone="warning">On hold</StatusBadge>
         <p className="text-sm font-medium text-foreground">Order #{order.orderNumber} is on hold</p>
         <p className="text-xs text-muted-foreground">
           Its table is free again and the kitchen tickets are parked. Resume it to keep serving or bill it.
@@ -503,6 +505,7 @@ export function CheckoutPanel({
         <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
           {canEditRole && (
             <Button
+              variant="outline"
               className="h-11"
               disabled={resume.isPending}
               onClick={() =>
@@ -882,7 +885,7 @@ export function CheckoutPanel({
                 </Button>
               </div>
               {splitLines.map((line, i) => (
-                <div key={line.id} className="flex flex-col gap-2 rounded-xl border border-border p-3">
+                <div key={line.id} className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-4">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-muted-foreground">
                       Payment {i + 1}
@@ -945,7 +948,9 @@ export function CheckoutPanel({
           )}
 
           {upiLine && remainingDue > 0 && (
-            <div className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-white p-5 shadow-sm">
+            {/* White on purpose in both themes: the QR modules need a white
+                surface to scan, so this card stays bg-white with dark text. */}
+            <div className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-white p-5">
               {upiUri ? (
                 <>
                   <QRCodeSVG value={upiUri} size={176} level="M" marginSize={1} />
@@ -964,7 +969,7 @@ export function CheckoutPanel({
 
           {remainingDue > 0 && <OnlinePayment orderId={order.id} branchId={branchId} />}
 
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-border px-3 py-2">
             <Label htmlFor="split" className="text-xs text-muted-foreground">
               Split equally between
             </Label>
