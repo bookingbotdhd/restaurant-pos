@@ -158,6 +158,16 @@ export const billPreviewSchema = z.object({
 });
 export type BillPreviewDto = z.infer<typeof billPreviewSchema>;
 
+// Send one bill on WhatsApp. Same bill adjustments as a preview (so an open
+// bill goes out at the figures the cashier sees), plus an optional phone
+// override — otherwise the customer's phone on file is used. One bill, one
+// tap, staff opt-in only: there is no bulk or automatic send.
+export const sendBillWhatsappSchema = z.object({
+  ...billAdjustmentFields,
+  phone: z.string().trim().min(7).max(20).optional(),
+});
+export type SendBillWhatsappDto = z.infer<typeof sendBillWhatsappSchema>;
+
 export const checkoutSchema = z.object({
   ...billAdjustmentFields,
   // Why a manual discount was given; stored on the order.

@@ -105,6 +105,31 @@ export function useCheckoutOrder(branchId: string | null) {
   });
 }
 
+/** What sending a bill on WhatsApp answers with. */
+export interface SendBillWhatsappResult {
+  ok: boolean;
+  provider: string;
+  /** Recipient phone, digits only. */
+  to: string;
+  messageId?: string | null;
+}
+
+/**
+ * Send one bill on WhatsApp. Staff opt-in only, one bill at a time — there
+ * is no bulk or automatic send. With the default noop provider the server
+ * answers 400 "not set up" (see docs/WHATSAPP-BILL.md); the error surfaces
+ * as a toast, nothing is pretended sent.
+ */
+export function useSendBillWhatsapp(branchId: string | null) {
+  return useMutation({
+    mutationFn: ({ orderId, phone }: { orderId: string; phone?: string }) =>
+      api.post<SendBillWhatsappResult>(
+        `/orders/${orderId}/send-bill-whatsapp?branchId=${branchId}`,
+        phone ? { phone } : {},
+      ),
+  });
+}
+
 export interface OpenOrder {
   id: string;
   orderNumber: string;

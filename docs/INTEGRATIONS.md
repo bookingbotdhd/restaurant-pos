@@ -14,6 +14,7 @@ on its own installation, encrypted.
 | Outgoing webhooks (HMAC-signed, retries, delivery history) | Working (Settings → Webhooks) |
 | Incoming orders / API access (scoped, expiring, rotatable keys) | Working (Settings → API Keys; `/api/v1/integrations/*`) |
 | **Zomato, Swiggy, other aggregators** | **Working: signed inbound webhook** (see below) |
+| **WhatsApp bill** (one bill at a time, staff opt-in) | **Stub only: sends nothing** until a provider is plugged in — needs the restaurant's own WhatsApp Business / Twilio account (see `WHATSAPP-BILL.md`) |
 
 ## Zomato, Swiggy and aggregators
 
