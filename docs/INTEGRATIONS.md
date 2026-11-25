@@ -33,7 +33,7 @@ Events (JSON body):
 | `event` | Effect |
 |---|---|
 | `ping` | Proves the secret works; marks the card **Connected**. |
-| `order.created` | Creates an ONLINE order awaiting acceptance (`externalSource` = provider, `externalOrderId` = `orderId`). `customer{name,phone,email?,ref?}`, `delivery{address,pincode?}` (required for `type: DELIVERY`, the default), `items[{name or menuItemId, quantity, kitchenNote?}]`, optional `branchId` (required when the restaurant has several branches), `notes`, `paymentMode` (`PREPAID` / `COD`, written into the order note). |
+| `order.created` | Creates an ONLINE order awaiting acceptance (`externalSource` = provider, `externalOrderId` = `orderId`). `customer{name,phone,email?,ref?}`, `delivery{address,pincode?}` (required for `type: DELIVERY`, the default), `items[{name or menuItemId, quantity, kitchenNote?}]`, optional `branchId` (required when the restaurant has several branches), `notes`, `paymentMode` (`PREPAID` / `COD`, written into the order note). On the generic `aggregator` endpoint, optional `platform` (`zomato` / `swiggy`) files the order under that platform instead of `aggregator`; on the `zomato` / `swiggy` endpoints it is ignored. |
 | `order.cancelled` | Declines the order if it is still waiting for acceptance; if staff already accepted it, an activity-log warning asks a person to decide. |
 
 Guarantees: the signature covers the exact bytes received and is compared in
@@ -89,6 +89,17 @@ branch, so a retried delivery cannot create a second order) and
 key is derived from `JWT_SECRET`, which means **rotating `JWT_SECRET` makes
 saved credentials unreadable** (the hub then reports *Authentication expired*
 and asks for them again). Set a dedicated key in production and back it up.
+
+Single-restaurant self-hosted installs can alternatively configure the
+aggregator webhook secrets in deployment config instead of the UI:
+`AGGREGATOR_<ZOMATO|SWIGGY|AGGREGATOR>_WEBHOOK_SECRET` (16+ characters),
+`AGGREGATOR_<PROVIDER>_ENABLED` and the `AGGREGATOR_WEBHOOKS_ENABLED`
+kill-switch — see `apps/backend/.env.example` and
+`src/integration-hub/aggregator-config.ts`. The env secret is only used
+when the restaurant has no saved connection for that provider, and a
+saved-but-disabled connection is never re-enabled by it. Step-by-step
+restaurant onboarding for Zomato/Swiggy is in
+`docs/ZOMATO-SWIGGY-ONBOARDING.md`.
 
 ## Permissions
 
