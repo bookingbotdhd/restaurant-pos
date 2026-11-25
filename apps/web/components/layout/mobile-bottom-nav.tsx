@@ -57,7 +57,14 @@ export function MobileBottomNav({
               isActive ? "text-primary" : "text-muted-foreground active:text-foreground",
             )}
           >
-            <Icon className="h-5 w-5" strokeWidth={isActive ? 2.5 : 2} />
+            <span
+              className={cn(
+                "flex h-9 w-12 items-center justify-center rounded-full transition-colors",
+                isActive && "bg-primary/10",
+              )}
+            >
+              <Icon className="h-5 w-5" strokeWidth={isActive ? 2.5 : 2} />
+            </span>
             <span className="max-w-full truncate px-1">{t(item.labelKey)}</span>
             {badges.nav[item.href] && !isActive ? (
               <span className="absolute top-2 left-1/2 ml-2 h-2.5 w-2.5 rounded-full bg-amber-500 shadow-[0_0_8px_2px_rgba(245,158,11,0.7)]" />
@@ -70,7 +77,9 @@ export function MobileBottomNav({
         onClick={onMore}
         className={cn(itemClass, "h-16 text-muted-foreground active:text-foreground")}
       >
-        <MoreHorizontal className="h-5 w-5" />
+        <span className="flex h-9 w-12 items-center justify-center rounded-full">
+          <MoreHorizontal className="h-5 w-5" />
+        </span>
         <span>More</span>
       </button>
     </nav>

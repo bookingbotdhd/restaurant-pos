@@ -8,6 +8,7 @@ import { ChannelBadge } from "@/components/orders/channel-badges";
 import { ReservationManageDialog } from "@/components/reservations/reservation-manage-dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,15 +51,11 @@ export default function ReservationsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-[32px] font-semibold tracking-tight text-foreground">
-            Reservations
-          </h1>
-          <p className="text-sm text-muted-foreground">Upcoming bookings across all floors</p>
-        </div>
-        <AddReservationDialog branchId={branchId} tables={tables} />
-      </div>
+      <PageHeader
+        title="Reservations"
+        description="Upcoming bookings across all floors"
+        actions={<AddReservationDialog branchId={branchId} tables={tables} />}
+      />
 
       <ReservationManageDialog
         branchId={branchId}

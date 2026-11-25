@@ -1,12 +1,22 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Download, Printer } from "lucide-react";
+import { Download, FileText, Printer } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { hasPermission, useCurrentUser } from "@/hooks/use-auth";
 import { useBranch } from "@/hooks/use-branch";
 import { api, ApiError } from "@/lib/api";
@@ -54,25 +64,30 @@ export default function ReportsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="print:hidden">
-        <h1 className="text-[32px] font-semibold tracking-tight text-foreground">Reports</h1>
-        <p className="text-sm text-muted-foreground">Filter by date, print, export to Excel, PDF or CSV, or email on a schedule</p>
+        <PageHeader
+          title="Reports"
+          description="Filter by date, print, export to Excel, PDF or CSV, or email on a schedule"
+        />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
         <nav className="flex flex-col gap-4 print:hidden" aria-label="Reports">
           {groups.map((g) => (
             <div key={g} className="flex flex-col gap-1">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{g}</p>
+              <p className="eyebrow px-3 pb-1">{g}</p>
               {catalog
                 ?.filter((c) => c.group === g)
                 .map((c) => (
                   <button
                     key={c.key}
                     type="button"
+                    aria-current={key === c.key ? "true" : undefined}
                     onClick={() => setKey(c.key)}
                     className={cn(
-                      "rounded-lg px-3 py-1.5 text-left text-sm transition-colors",
-                      key === c.key ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-secondary",
+                      "min-h-11 rounded-xl px-3 py-2 text-left text-sm font-medium transition-colors",
+                      key === c.key
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-foreground hover:bg-secondary",
                     )}
                   >
                     {c.title}
@@ -83,7 +98,7 @@ export default function ReportsPage() {
         </nav>
 
         <div className="flex min-w-0 flex-col gap-4">
-          <div className="flex flex-wrap items-center gap-2 print:hidden">
+          <Card className="flex flex-wrap items-center gap-2 p-4 print:hidden">
             <Input type="date" className="w-40" value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} />
             <Input type="date" className="w-40" value={range.to} onChange={(e) => setRange({ ...range, to: e.target.value })} />
             <Button variant="outline" size="sm" onClick={() => window.print()}>
@@ -91,19 +106,20 @@ export default function ReportsPage() {
             </Button>
             {canExport &&
               (["xlsx", "pdf", "csv"] as const).map((f) => (
-                <a
+                <Button
                   key={f}
-                  href={`/api/v1/reports/${key}/export?${qs}&format=${f}`}
-                  className="inline-flex h-8 items-center rounded-lg border border-border px-3 text-sm hover:bg-secondary"
+                  variant="outline"
+                  size="sm"
+                  render={<a href={`/api/v1/reports/${key}/export?${qs}&format=${f}`} />}
                 >
                   <Download className="mr-2 h-4 w-4" /> {f === "xlsx" ? "Excel" : f.toUpperCase()}
-                </a>
+                </Button>
               ))}
-          </div>
+          </Card>
 
-          <Card className="overflow-x-auto p-4">
-            <h2 className="mb-3 text-lg font-semibold text-foreground">{data?.title ?? catalog?.find((c) => c.key === key)?.title}</h2>
-            <p className="mb-3 hidden text-xs text-muted-foreground print:block">
+          <Card className="overflow-hidden p-6">
+            <h2 className="mb-1 text-lg font-semibold text-foreground">{data?.title ?? catalog?.find((c) => c.key === key)?.title}</h2>
+            <p className="mb-4 text-xs text-muted-foreground">
               {range.from} to {range.to}
             </p>
             {isLoading ? (
@@ -111,26 +127,33 @@ export default function ReportsPage() {
             ) : error ? (
               <p className="text-sm text-destructive">{error instanceof ApiError ? error.message : "Could not load report"}</p>
             ) : data && data.rows.length > 0 ? (
-              <table className="w-full text-sm">
-                <thead className="text-left text-xs text-muted-foreground">
-                  <tr>
+              <Table>
+                <TableHeader>
+                  <TableRow>
                     {data.columns.map((c) => (
-                      <th key={c} className="py-1 pr-4 font-medium">{c}</th>
+                      <TableHead key={c}>{c}</TableHead>
                     ))}
-                  </tr>
-                </thead>
-                <tbody>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {data.rows.map((r, i) => (
-                    <tr key={i} className="border-t border-border">
+                    <TableRow key={i}>
                       {r.map((cell, j) => (
-                        <td key={j} className="py-1.5 pr-4 tabular-nums">{cell ?? "—"}</td>
+                        <TableCell key={j} className="tabular-nums">
+                          {cell ?? "—"}
+                        </TableCell>
                       ))}
-                    </tr>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             ) : (
-              <p className="py-8 text-center text-sm text-muted-foreground">No data for this period.</p>
+              <EmptyState
+                icon={FileText}
+                title="No data for this period."
+                description="Try a wider date range, or check that orders were recorded in this branch."
+                className="py-10"
+              />
             )}
           </Card>
 

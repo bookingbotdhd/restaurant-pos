@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { StatusNote, useNoteToast } from "@/components/ui/status-note";
+import { AuthBrandPanel } from "@/components/layout/auth-brand-panel";
 import { Logo } from "@/components/layout/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,106 +37,117 @@ export default function SignupPage() {
   };
 
   return (
-    <main className="relative flex flex-1 items-center justify-center overflow-hidden bg-background px-4 py-10">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[420px] bg-[radial-gradient(50%_50%_at_50%_0%,color-mix(in_oklch,var(--primary),transparent_90%),transparent)]"
+    <main className="grid min-h-dvh flex-1 bg-background lg:grid-cols-[1.05fr_1fr]">
+      <AuthBrandPanel
+        headline="Your restaurant, up and running today."
+        subhead="Create your account and start taking orders — menu, tables and billing included from the first login."
       />
-      <motion.div
-        initial={prefersReducedMotion ? false : { opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-        className="w-full max-w-sm"
-      >
-        <div className="mb-10 flex flex-col items-center gap-2 text-center">
-          <Link href="/">
-            <Logo size={44} />
-          </Link>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            RestroOS
-          </h1>
-          <p className="text-sm text-muted-foreground">Set up your restaurant</p>
-        </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="restaurantName">Restaurant name</Label>
-            <Input
-              id="restaurantName"
-              autoComplete="organization"
-              placeholder="e.g. Spice Route"
-              {...field("restaurantName")}
-            />
-            {errors.restaurantName && (
-              <p className="text-xs text-destructive">{errors.restaurantName.message}</p>
-            )}
+      <div className="relative flex items-center justify-center px-4 py-10">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 h-[320px] bg-[radial-gradient(50%_50%_at_50%_0%,color-mix(in_oklch,var(--primary),transparent_90%),transparent)] lg:hidden"
+        />
+        <motion.div
+          initial={prefersReducedMotion ? false : { opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+          className="relative w-full max-w-sm"
+        >
+          <div className="mb-8 flex flex-col items-start gap-3">
+            <Link href="/" className="lg:hidden" aria-label="RestroOS home">
+              <Logo size={44} />
+            </Link>
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+              Set up your restaurant
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              A few details and you&apos;re ready for service
+            </p>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="branchName">First branch name</Label>
-            <Input
-              id="branchName"
-              placeholder="Main Branch"
-              defaultValue="Main Branch"
-              {...field("branchName")}
-            />
-            {errors.branchName && (
-              <p className="text-xs text-destructive">{errors.branchName.message}</p>
-            )}
-          </div>
+          <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="restaurantName">Restaurant name</Label>
+              <Input
+                id="restaurantName"
+                autoComplete="organization"
+                placeholder="e.g. Spice Route"
+                {...field("restaurantName")}
+              />
+              {errors.restaurantName && (
+                <p className="text-xs text-destructive">{errors.restaurantName.message}</p>
+              )}
+            </div>
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="ownerName">Your name</Label>
-            <Input
-              id="ownerName"
-              autoComplete="name"
-              placeholder="e.g. Priya Sharma"
-              {...field("ownerName")}
-            />
-            {errors.ownerName && (
-              <p className="text-xs text-destructive">{errors.ownerName.message}</p>
-            )}
-          </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="branchName">First branch name</Label>
+              <Input
+                id="branchName"
+                placeholder="Main Branch"
+                defaultValue="Main Branch"
+                {...field("branchName")}
+              />
+              {errors.branchName && (
+                <p className="text-xs text-destructive">{errors.branchName.message}</p>
+              )}
+            </div>
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              autoComplete="email"
-              placeholder="you@restaurant.com"
-              {...field("email")}
-            />
-            {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
-          </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="ownerName">Your name</Label>
+              <Input
+                id="ownerName"
+                autoComplete="name"
+                placeholder="e.g. Priya Sharma"
+                {...field("ownerName")}
+              />
+              {errors.ownerName && (
+                <p className="text-xs text-destructive">{errors.ownerName.message}</p>
+              )}
+            </div>
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="password">Password</Label>
-            <PasswordInput
-              id="password"
-              
-              autoComplete="new-password"
-              placeholder="At least 8 characters"
-              {...field("password")}
-            />
-            {errors.password && (
-              <p className="text-xs text-destructive">{errors.password.message}</p>
-            )}
-          </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                placeholder="you@restaurant.com"
+                {...field("email")}
+              />
+              {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+            </div>
 
-          <StatusNote note={note} onClear={clear} />
-          <Button type="submit" className="mt-2 h-11" disabled={register.isPending}>
-            {register.isPending ? "Creating your account…" : "Create account"}
-          </Button>
-        </form>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="password">Password</Label>
+              <PasswordInput
+                id="password"
+                autoComplete="new-password"
+                placeholder="At least 8 characters"
+                {...field("password")}
+              />
+              {errors.password && (
+                <p className="text-xs text-destructive">{errors.password.message}</p>
+              )}
+            </div>
 
-        <p className="mt-8 text-center text-xs text-muted-foreground">
-          Already have an account?{" "}
-          <Link href="/login" className="font-medium text-foreground hover:underline">
-            Sign in
-          </Link>
-        </p>
-      </motion.div>
+            <StatusNote note={note} onClear={clear} />
+            <Button type="submit" size="lg" className="mt-2 w-full" disabled={register.isPending}>
+              {register.isPending ? "Creating your account…" : "Create account"}
+            </Button>
+          </form>
+
+          <p className="mt-8 text-center text-sm text-muted-foreground">
+            Already have an account?{" "}
+            <Link href="/login" className="font-medium text-primary hover:underline">
+              Sign in
+            </Link>
+          </p>
+          <p className="mt-6 text-center text-xs text-muted-foreground lg:hidden">
+            RestroOS · Powered by Shibam Solutions
+          </p>
+        </motion.div>
+      </div>
     </main>
   );
 }

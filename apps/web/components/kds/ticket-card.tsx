@@ -74,7 +74,7 @@ export function TicketCard({ ticket, branchId }: { ticket: KotTicket; branchId: 
   return (
     <Card
       className={cn(
-        "flex shrink-0 flex-col gap-3 p-4",
+        "flex shrink-0 flex-col gap-3 p-5",
         (isLate || ticket.isPriority) && "border-warning/50 ring-1 ring-warning/30",
         isFresh && "border-primary ring-2 ring-primary/40 motion-safe:animate-pulse",
       )}
@@ -113,7 +113,7 @@ export function TicketCard({ ticket, branchId }: { ticket: KotTicket; branchId: 
         title="View customer details"
       >
         <div>
-          <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+          <p className="flex items-center gap-1.5 text-base font-bold text-foreground">
             #{ticket.order.orderNumber}
             {ticket.isPriority && <Star className="h-3.5 w-3.5 fill-warning text-warning" />}
             {ticket.order.channel === "ONLINE" && (
@@ -128,35 +128,35 @@ export function TicketCard({ ticket, branchId }: { ticket: KotTicket; branchId: 
         </div>
         <div
           className={cn(
-            "flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium tabular-nums",
+            "flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-semibold tabular-nums",
             isLate ? "bg-warning/15 text-warning" : "bg-secondary text-muted-foreground",
           )}
         >
-          <Timer className="h-3 w-3" />
+          <Timer className="h-4 w-4" />
           {elapsed}m
         </div>
       </button>
 
       {ticket.order.notes && (
-        <p className="flex items-start gap-1 rounded-lg bg-warning/10 px-2 py-1.5 text-xs text-warning">
-          <Flame className="mt-0.5 h-3 w-3 shrink-0" /> {ticket.order.notes}
+        <p className="flex items-start gap-1.5 rounded-xl bg-warning/10 px-3 py-2 text-sm font-medium text-warning">
+          <Flame className="mt-0.5 h-4 w-4 shrink-0" /> {ticket.order.notes}
         </p>
       )}
 
-      <div className="flex flex-col gap-2 border-t border-border pt-3">
+      <div className="flex flex-col gap-2.5 border-t border-border pt-3">
         {ticket.items.map((item) => (
-          <div key={item.id} className="text-sm">
-            <p className="font-medium text-foreground">
+          <div key={item.id} className="text-base">
+            <p className="font-semibold text-foreground">
               {item.orderItem.quantity}× {item.orderItem.nameSnapshot}
             </p>
             {item.orderItem.modifiers.length > 0 && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 {item.orderItem.modifiers.map((m) => m.nameSnapshot).join(", ")}
               </p>
             )}
             {item.orderItem.kitchenNote && (
-              <p className="flex items-center gap-1 text-xs text-warning">
-                <Flame className="h-3 w-3" /> {item.orderItem.kitchenNote}
+              <p className="flex items-center gap-1 text-sm font-medium text-warning">
+                <Flame className="h-3.5 w-3.5" /> {item.orderItem.kitchenNote}
               </p>
             )}
           </div>

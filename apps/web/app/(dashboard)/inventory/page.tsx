@@ -10,6 +10,7 @@ import { InventoryTabs } from "@/components/inventory/inventory-tabs";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -43,18 +44,16 @@ function InventoryView() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-[32px] font-semibold tracking-tight text-foreground">Inventory</h1>
-          <p className="text-sm text-muted-foreground">
-            Ingredients, recipe costing, purchase orders, and waste
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {canImport && <ImportCsvDialog kind="ingredients" branchId={branchId} />}
-          <AddIngredientDialog branchId={branchId} />
-        </div>
-      </div>
+      <PageHeader
+        title="Inventory"
+        description="Ingredients, recipe costing, purchase orders, and waste"
+        actions={
+          <>
+            {canImport && <ImportCsvDialog kind="ingredients" branchId={branchId} />}
+            <AddIngredientDialog branchId={branchId} />
+          </>
+        }
+      />
 
       <InventoryTabs />
 

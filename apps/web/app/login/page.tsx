@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { AlertCircle } from "lucide-react";
+import { AuthBrandPanel } from "@/components/layout/auth-brand-panel";
 import { Logo } from "@/components/layout/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,105 +57,110 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="relative flex flex-1 items-center justify-center overflow-hidden bg-background px-4">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[420px] bg-[radial-gradient(50%_50%_at_50%_0%,color-mix(in_oklch,var(--primary),transparent_90%),transparent)]"
+    <main className="grid min-h-dvh flex-1 bg-background lg:grid-cols-[1.05fr_1fr]">
+      <AuthBrandPanel
+        headline="Run your restaurant, beautifully."
+        subhead="Orders, tables, kitchen and billing — one calm screen for the busiest hour of service."
       />
-      <motion.div
-        initial={prefersReducedMotion ? false : { opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-        className="w-full max-w-sm"
-      >
-        <div className="mb-10 flex flex-col items-center gap-2 text-center">
-          <Link href="/">
-            <Logo size={44} />
-          </Link>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            RestroOS
-          </h1>
-          <p className="text-sm text-muted-foreground">Sign in to manage your restaurant</p>
-        </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="email">Email or phone number</Label>
-            <Input
-              id="email"
-              type="text"
-              autoComplete="username"
-              inputMode="email"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              enterKeyHint="next"
-              autoFocus
-              className="h-11"
-              placeholder="you@restaurant.com or phone number"
-              {...register("email")}
-            />
-            {errors.email && (
-              <p className="text-xs text-destructive">{errors.email.message}</p>
-            )}
+      <div className="relative flex items-center justify-center px-4 py-10">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 h-[320px] bg-[radial-gradient(50%_50%_at_50%_0%,color-mix(in_oklch,var(--primary),transparent_90%),transparent)] lg:hidden"
+        />
+        <motion.div
+          initial={prefersReducedMotion ? false : { opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+          className="relative w-full max-w-sm"
+        >
+          <div className="mb-8 flex flex-col items-start gap-3">
+            <Link href="/" className="lg:hidden" aria-label="RestroOS home">
+              <Logo size={44} />
+            </Link>
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground">Welcome back</h1>
+            <p className="text-sm text-muted-foreground">Sign in to manage your restaurant</p>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="password">Password</Label>
-            <PasswordInput
-              id="password"
-              
-              autoComplete="current-password"
-              enterKeyHint="go"
-              className="h-11"
-              placeholder="Your password"
-              {...register("password")}
-            />
-            {errors.password && (
-              <p className="text-xs text-destructive">{errors.password.message}</p>
-            )}
-          </div>
-
-          {needsCode && (
+          <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="totp">Verification code</Label>
+              <Label htmlFor="email">Email or phone number</Label>
               <Input
-                id="totp"
-                inputMode="text"
-                autoComplete="one-time-code"
+                id="email"
+                type="text"
+                autoComplete="username"
+                inputMode="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                enterKeyHint="next"
                 autoFocus
-                placeholder="6-digit code or recovery code"
-                {...register("totp")}
+                placeholder="you@restaurant.com or phone number"
+                {...register("email")}
               />
-              <p className="text-xs text-muted-foreground">
-                Open your authenticator app, or use one of your recovery codes.
-              </p>
-              {errors.totp && <p className="text-xs text-destructive">{errors.totp.message}</p>}
+              {errors.email && (
+                <p className="text-xs text-destructive">{errors.email.message}</p>
+              )}
             </div>
-          )}
 
-          {error && (
-            <div
-              role="alert"
-              className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive"
-            >
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{error}</span>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="password">Password</Label>
+              <PasswordInput
+                id="password"
+                autoComplete="current-password"
+                enterKeyHint="go"
+                placeholder="Your password"
+                {...register("password")}
+              />
+              {errors.password && (
+                <p className="text-xs text-destructive">{errors.password.message}</p>
+              )}
             </div>
-          )}
 
-          <Button type="submit" className="mt-2 h-12 text-base" disabled={login.isPending}>
-            {login.isPending ? "Signing in…" : "Sign in"}
-          </Button>
-        </form>
+            {needsCode && (
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="totp">Verification code</Label>
+                <Input
+                  id="totp"
+                  inputMode="text"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  placeholder="6-digit code or recovery code"
+                  {...register("totp")}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Open your authenticator app, or use one of your recovery codes.
+                </p>
+                {errors.totp && <p className="text-xs text-destructive">{errors.totp.message}</p>}
+              </div>
+            )}
 
-        <p className="mt-8 text-center text-xs text-muted-foreground">
-          New restaurant?{" "}
-          <Link href="/signup" className="font-medium text-foreground hover:underline">
-            Create an account
-          </Link>
-        </p>
-      </motion.div>
+            {error && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive"
+              >
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <Button type="submit" size="lg" className="mt-2 w-full" disabled={login.isPending}>
+              {login.isPending ? "Signing in…" : "Sign in"}
+            </Button>
+          </form>
+
+          <p className="mt-8 text-center text-sm text-muted-foreground">
+            New restaurant?{" "}
+            <Link href="/signup" className="font-medium text-primary hover:underline">
+              Create an account
+            </Link>
+          </p>
+          <p className="mt-6 text-center text-xs text-muted-foreground lg:hidden">
+            RestroOS · Powered by Shibam Solutions
+          </p>
+        </motion.div>
+      </div>
     </main>
   );
 }
