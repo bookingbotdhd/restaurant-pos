@@ -54,6 +54,48 @@ export function useDashboardTrends(branchId: string | null, days = 14) {
   });
 }
 
+// ---- Baseline sales forecast (same-weekday average, not ML) ---------------
+export type ForecastConfidence = "good" | "low" | "fallback" | "none";
+
+export interface ForecastDay {
+  date: string;
+  weekday: number;
+  forecastSales: number | null;
+  forecastOrders: number | null;
+  lowSales: number | null;
+  highSales: number | null;
+  observations: number;
+  noSalesDays: number;
+  confidence: ForecastConfidence;
+  basis: string;
+}
+
+export interface SalesForecast {
+  branchId: string;
+  timezone: string;
+  generatedAt: string;
+  method: string;
+  historyWeeks: number;
+  horizonDays: number;
+  from: string;
+  to: string;
+  days: ForecastDay[];
+  recentActuals: { date: string; sales: number; orders: number }[];
+  backtest: { daysChecked: number; meanAbsPctError: number | null; note: string };
+  limitations: string[];
+}
+
+export const FORECAST_DAY_OPTIONS = [7, 14] as const;
+
+export function useForecast(branchId: string | null, days = 7) {
+  return useQuery({
+    queryKey: ["dashboard", "forecast", branchId, days],
+    queryFn: () => api.get<SalesForecast>(`/forecast?branchId=${branchId}&days=${days}`),
+    enabled: !!branchId,
+    refetchInterval: 60_000,
+  });
+}
+
 // ---- Personal layout (saved on the server, so it follows the person) -------
 
 export const TOP_WIDGETS = ["kpis", "attention", "charts"] as const;
