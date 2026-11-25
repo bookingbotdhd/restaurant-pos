@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, MessageCircle, Pencil, Phone, X } from "lucide-react";
+import { Check, MessageCircle, Pencil, Phone, Send, X } from "lucide-react";
 import { useState } from "react";
 import { StatusNote, useNoteToast } from "@/components/ui/status-note";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +13,7 @@ import { DeliveryWhere } from "@/components/orders/delivery-where";
 import { EditBillDialog } from "@/components/orders/edit-bill-dialog";
 import { ReasonDialog } from "@/components/orders/reason-dialog";
 import { hasPermission, useCurrentUser } from "@/hooks/use-auth";
-import { useAcceptOrder, useOrder, useRejectOrder } from "@/hooks/use-orders";
+import { useAcceptOrder, useOrder, useRejectOrder, useSendBillWhatsapp } from "@/hooks/use-orders";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +38,7 @@ export function OrderDetailDialog({
   const { data: order, isLoading } = useOrder(branchId, open ? orderId : null);
   const accept = useAcceptOrder(branchId);
   const reject = useRejectOrder(branchId);
+  const sendBill = useSendBillWhatsapp(branchId);
   const { note, clear: clearNote, toast } = useNoteToast();
   const canCancelRole = useCanCancelOrders();
   const { data: me } = useCurrentUser();
@@ -164,6 +165,25 @@ export function OrderDetailDialog({
                       <MessageCircle className="mr-1.5 h-4 w-4" /> WhatsApp
                     </a>
                   </div>
+                  {/* Sends the bill via the server's WhatsApp provider — one
+                      bill, staff opt-in only. With no provider configured
+                      the server answers 400 and nothing is sent. */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    disabled={sendBill.isPending}
+                    onClick={() =>
+                      sendBill.mutateAsync({ orderId: order.id }).then(
+                        () => toast.success("Bill sent on WhatsApp"),
+                        (err: unknown) =>
+                          toast.error(err instanceof Error ? err.message : "Could not send the bill"),
+                      )
+                    }
+                  >
+                    <Send className="mr-1.5 h-4 w-4" />
+                    {sendBill.isPending ? "Sending…" : "Send bill on WhatsApp"}
+                  </Button>
                 </>
               ) : (
                 <p className="text-xs text-muted-foreground">No phone number on file.</p>

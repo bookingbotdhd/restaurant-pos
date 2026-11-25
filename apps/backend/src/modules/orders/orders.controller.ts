@@ -24,11 +24,13 @@ import {
   refundSchema,
   rejectOrderSchema,
   removeOrderItemSchema,
+  sendBillWhatsappSchema,
   updateOrderItemSchema,
   updateOrderSchema,
   type BillPreviewDto,
   type CheckoutDto,
   type RemoveOrderItemDto,
+  type SendBillWhatsappDto,
   type UpdateOrderDto,
   type UpdateOrderItemDto,
   type SessionUser,
@@ -63,6 +65,8 @@ import {
 import { OrdersService } from './orders.service';
 import { buildKotHtml } from './kot.html';
 import { buildReceiptHtml } from './receipt.html';
+import { buildBillSummary } from '../whatsapp-bill/bill-templates';
+import { WhatsAppBillService } from '../whatsapp-bill/whatsapp-bill.service';
 import { VerifactuService } from '../verifactu/verifactu.service';
 
 type ReceiptData = Awaited<ReturnType<OrdersService['getReceiptData']>>;
@@ -208,6 +212,7 @@ export class OrdersController {
     private readonly kotPrint: KotPrintService,
     private readonly verifactu: VerifactuService,
     private readonly authService: AuthService,
+    private readonly whatsappBill: WhatsAppBillService,
   ) {}
 
   // Manager-PIN gate, enforced server-side: the frontend prompt is only
@@ -460,6 +465,65 @@ export class OrdersController {
     const adj = body as BillPreviewDto;
     assertMayAdjust(user, adj);
     return this.ordersService.previewBill(branchId, id, adj);
+  }
+
+  // Send this bill to the customer's WhatsApp — one bill, one tap, only
+  // when staff choose to. Never automatic and never bulk: checkout, the
+  // scheduler and campaigns never call it. The bill goes out at the same
+  // server-priced figures as the printed bill (open bills are provisional).
+  // Needs the `bills.print` permission, like printing. With the default
+  // noop provider this answers 400 "not set up" — see docs/WHATSAPP-BILL.md.
+  @Auth('bills.print')
+  @Post(':id/send-bill-whatsapp')
+  @UsePipes(new ZodValidationPipe(sendBillWhatsappSchema))
+  async sendBillWhatsapp(
+    @CurrentUser() user: SessionUser,
+    @Query('branchId') branchId: string,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    await this.branchAccess.assertAccess(user.restaurantId, branchId);
+    const dto = body as SendBillWhatsappDto;
+    assertMayAdjust(user, dto);
+    const { order, overrides } = await this.ordersService.getBillForPrint(
+      branchId,
+      id,
+      dto,
+    );
+    return this.whatsappBill.sendBill({
+      restaurantId: user.restaurantId,
+      branchId,
+      orderId: id,
+      userId: user.id,
+      to: dto.phone ?? order.customer?.phone ?? null,
+      bill: buildBillSummary({
+        orderNumber: order.orderNumber,
+        createdAt: order.createdAt,
+        restaurantName: order.branch.restaurant.name,
+        branchName: order.branch.name,
+        currency: order.branch.restaurant.currency,
+        customerName: order.customer?.name ?? null,
+        items: order.items.map((item) => ({
+          name: item.nameSnapshot,
+          quantity: item.quantity,
+          unitPrice: Number(item.unitPriceSnapshot),
+          lineTotal: Number(item.lineTotal),
+          modifiers: item.modifiers.map((m) => m.nameSnapshot),
+        })),
+        payments: order.payments.map((p) => ({
+          method: p.method,
+          amount: Number(p.amount),
+        })),
+        subtotal: overrides.subtotal,
+        discountAmount: overrides.discountAmount,
+        taxAmount: overrides.taxAmount,
+        tipAmount: overrides.tipAmount,
+        totalAmount: overrides.totalAmount,
+        amountPaid: overrides.amountPaid,
+        balanceDue: overrides.balanceDue,
+        isProvisional: overrides.isProvisional,
+      }),
+    });
   }
 
   @Auth('bills.print')

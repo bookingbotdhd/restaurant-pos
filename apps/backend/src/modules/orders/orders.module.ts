@@ -8,6 +8,7 @@ import { InventoryModule } from '../inventory/inventory.module';
 import { MarketingModule } from '../marketing/marketing.module';
 import { ReferralsModule } from '../referrals/referrals.module';
 import { VerifactuModule } from '../verifactu/verifactu.module';
+import { WhatsAppBillModule } from '../whatsapp-bill/whatsapp-bill.module';
 import { KotPrintService } from './kot-print.service';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
@@ -23,6 +24,7 @@ import { ScheduledOrdersService } from './scheduled-orders.service';
     MarketingModule,
     VerifactuModule,
     ReferralsModule,
+    WhatsAppBillModule,
   ],
   controllers: [OrdersController],
   providers: [
