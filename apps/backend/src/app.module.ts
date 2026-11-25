@@ -17,6 +17,7 @@ import { HrModule } from './modules/hr/hr.module';
 import { AccountingModule } from './modules/accounting/accounting.module';
 import { MarketingModule } from './modules/marketing/marketing.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { ForecastModule } from './modules/forecast/forecast.module';
 import { OperationsModule } from './modules/operations/operations.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { IntegrationHubModule } from './integration-hub/integration-hub.module';
@@ -67,6 +68,7 @@ import { VerifactuModule } from './modules/verifactu/verifactu.module';
     AccountingModule,
     MarketingModule,
     ReportsModule,
+    ForecastModule,
     OperationsModule,
     WebhooksModule,
     IntegrationHubModule,

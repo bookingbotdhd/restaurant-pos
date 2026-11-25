@@ -5,6 +5,7 @@ import { AlertTriangle, ChefHat, SlidersHorizontal, ClipboardList, Flame, Globe,
 import Link from "next/link";
 import { useState } from "react";
 import { QuickActions } from "@/components/dashboard/quick-actions";
+import { ForecastWidget } from "@/components/dashboard/forecast-widget";
 import { TrendChart } from "@/components/dashboard/trend-chart";
 import { OrderDetailDialog } from "@/components/orders/order-detail-dialog";
 import { RefundDialog } from "@/components/orders/refund-dialog";
@@ -311,6 +312,7 @@ export default function DashboardPage() {
           isLoading={trendsLoading}
           emptyMessage={`No waste logged in the last ${prefs.trendDays} days — nice.`}
         />
+        <ForecastWidget branchId={branchId} />
       </div>
 
       <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 xl:grid-cols-4" style={{ order: 100 }}>
